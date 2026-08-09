@@ -1395,3 +1395,17 @@ Content-Transfer-Encoding: quoted-printable
 #9 C:/xampp/htdocs/AxisPro SMS/artisan(13): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
 #10 {main}
 "} 
+[2026-08-09 13:11:29] production.ERROR: The C:\xampp\htdocs\AxisPro SMS\bootstrap\cache directory must be present and writable. {"exception":"[object] (Exception(code: 0): The C:\\xampp\\htdocs\\AxisPro SMS\\bootstrap\\cache directory must be present and writable. at C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179)
+[stacktrace]
+#0 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(132): Illuminate/Foundation/PackageManifest->write(Array)
+#1 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(108): Illuminate/Foundation/PackageManifest->build()
+#2 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(91): Illuminate/Foundation/PackageManifest->getManifest()
+#3 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(80): Illuminate/Foundation/PackageManifest->config('aliases')
+#4 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/RegisterFacades.php(26): Illuminate/Foundation/PackageManifest->aliases()
+#5 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(342): Illuminate/Foundation/Bootstrap/RegisterFacades->bootstrap(Object(Illuminate/Foundation/Application))
+#6 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(474): Illuminate/Foundation/Application->bootstrapWith(Array)
+#7 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(196): Illuminate/Foundation/Console/Kernel->bootstrap()
+#8 C:/xampp/htdocs/AxisPro SMS/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1235): Illuminate/Foundation/Console/Kernel->handle(Object(Symfony/Component/Console/Input/ArgvInput), Object(Symfony/Component/Console/Output/ConsoleOutput))
+#9 C:/xampp/htdocs/AxisPro SMS/artisan(13): Illuminate/Foundation/Application->handleCommand(Object(Symfony/Component/Console/Input/ArgvInput))
+#10 {main}
+"} 
