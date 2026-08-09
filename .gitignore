@@ -2,3 +2,4 @@
 .env
 /bootstrap/cache/*.php
 !/bootstrap/cache/.gitignore
+.env
