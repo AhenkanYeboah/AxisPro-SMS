@@ -67,9 +67,9 @@ UPDATE teachers AS t
 SET class_level_id = cl.id
 FROM class_levels AS cl
 WHERE cl.school_id = t.school_id
-  AND cl.name = TRIM(t.assigned_class)
-  AND cl.section IS NULL
-  AND t.assigned_class IS NOT NULL
+  AND cl.name = TRIM(t.assigned_class)
+  AND cl.section IS NULL
+  AND t.assigned_class IS NOT NULL
 SQL);
     }
 
