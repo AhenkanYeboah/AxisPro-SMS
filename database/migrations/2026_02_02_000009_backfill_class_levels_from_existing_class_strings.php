@@ -97,15 +97,16 @@ return new class extends Migration
             // now exists for their (school_id, class) pair. Done per-table
             // right after its own scan so we don't need to hold every
             // table's rows in memory at once.
-            DB::statement(<<<SQL
-                UPDATE {$sourceTable} AS src
-                JOIN class_levels AS cl
-                  ON cl.school_id = src.school_id
-                 AND cl.name = TRIM(src.class)
-                 AND cl.section IS NULL
-                SET src.class_level_id = cl.id
-                WHERE src.class IS NOT NULL AND src.class != ''
-            SQL);
+       DB::statement(<<<SQL
+UPDATE students AS src
+SET class_level_id = cl.id
+FROM class_levels AS cl
+WHERE cl.school_id = src.school_id
+  AND cl.name = TRIM(src.class)
+  AND cl.section IS NULL
+  AND src.class IS NOT NULL 
+  AND src.class != ''
+SQL);
         }
     }
 
