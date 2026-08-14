@@ -37,10 +37,15 @@ COPY . /var/www/html
 # Generate optimized Composer autoloader with app files present
 RUN composer dump-autoload --optimize --no-dev
 
-# Set permissions for storage & cache directories
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Copy application code
+COPY --chown=www-data:www-data . /var/www/html
 
+# Ensure storage directories exist and have proper permissions
+RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
+    /var/www/html/storage/logs \
+    /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 EXPOSE 80
 
 # Build fresh config & route caches at runtime when environment variables are present
