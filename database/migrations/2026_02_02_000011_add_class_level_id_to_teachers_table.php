@@ -62,17 +62,15 @@ return new class extends Migration
             }
         }
 
-        DB::table('teachers as t')
-    ->join('class_levels as cl', function ($join) {
-        $join->on('cl.school_id', '=', 't.school_id')
-             ->on('cl.name', '=', DB::raw('TRIM(t.assigned_class)'));
-    })
-    ->whereNull('cl.section')
-    ->whereNotNull('t.assigned_class')
-    ->update([
-        't.class_level_id' => DB::raw('cl.id'),
-    ]);
-        SQL);
+       DB::statement(<<<SQL
+UPDATE teachers AS t
+SET class_level_id = cl.id
+FROM class_levels AS cl
+WHERE cl.school_id = t.school_id
+  AND cl.name = TRIM(t.assigned_class)
+  AND cl.section IS NULL
+  AND t.assigned_class IS NOT NULL
+SQL);
     }
 
     public function down(): void
