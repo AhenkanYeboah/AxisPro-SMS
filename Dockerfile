@@ -1,9 +1,9 @@
 FROM php:8.2-apache
 
-# Set environment variables for non-interactive installations
+# Set non-interactive mode for apt operations
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies & clean up apt cache to save image space
+# Install dependencies & clear apt cache to save image space
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     libpng-dev \
@@ -15,34 +15,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PHP extensions required for PostgreSQL and Laravel
+# Install PHP extensions required for PostgreSQL + Laravel
 RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
 
-# Enable Apache rewrite + update DocumentRoot to /public
+# Enable Apache rewrite + point DocumentRoot to /public
 RUN a2enmod rewrite && \
     sed -ri -e 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 
-# Copy Composer binary from official image
+# Copy Composer binary
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Leverage Docker Layer Caching:
-# Copy dependency manifests first so composer install only runs when lockfile changes
+# Leverage Docker layer caching: Copy lockfiles first
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 
-# Copy application files
+# Copy remaining application code
 COPY . /var/www/html
 
-# Generate optimized autoloader now that full codebase is present
+# Generate optimized Composer autoloader with app files present
 RUN composer dump-autoload --optimize --no-dev
 
-# Set directory permissions for storage and cache
+# Set permissions for storage & cache directories
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80
 
-# Run caching, migrations, and start Apache dynamically at runtime
+# Build fresh config & route caches at runtime when environment variables are present
 CMD sh -c "php artisan config:cache && php artisan route:cache && php artisan migrate --force && apache2-foreground"
