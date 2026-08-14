@@ -34,6 +34,15 @@ RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 # Copy remaining application code
 COPY . /var/www/html
 
+# 1. Create storage and cache directories first
+RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
+    /var/www/html/storage/logs \
+    /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache \
+
+# 2. Now run dump-autoload safely
+RUN composer dump-autoload --optimize --no-dev
 # Generate optimized Composer autoloader with app files present
 RUN composer dump-autoload --optimize --no-dev
 
