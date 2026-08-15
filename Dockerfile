@@ -42,12 +42,15 @@ RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 # Copy remaining application code
 COPY . /var/www/html
 
-# 1. Ensure storage and bootstrap/cache directories exist with proper permissions
-RUN mkdir -p bootstrap/cache storage/framework/sessions storage/framework/views storage/framework/cache \
-    && chmod -R 777 bootstrap/cache storage
+# 1. Create storage and cache directories with proper permissions
+RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
+    /var/www/html/storage/logs \
+    /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# 2. Now run dump-autoload safely
-RUN composer dump-autoload --optimize --no-dev
+# 2. Run composer dump-autoload without executing post-autoload scripts
+RUN composer dump-autoload --optimize --no-dev --no-scripts
 
 # Copy application code
 COPY --chown=www-data:www-data . /var/www/html
