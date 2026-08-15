@@ -7,11 +7,12 @@ use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void
-    {
-        //
+    public function boot(): void
+{
+    if (config('app.env') === 'production') {
+        URL::forceScheme('https');
     }
-
+}
     public function boot(): void
     {
         // Render terminates HTTPS at its edge/proxy - the app itself
