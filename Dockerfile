@@ -43,8 +43,11 @@ RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
 
 # 2. Now run dump-autoload safely
 RUN composer dump-autoload --optimize --no-dev
-# Generate optimized Composer autoloader with app files present
-RUN composer dump-autoload --optimize --no-dev
+
+# Remove stale development service manifests copied or generated during build
+# and rediscover production-only packages
+RUN rm -f /var/www/html/bootstrap/cache/packages.php /var/www/html/bootstrap/cache/services.php \
+    && php artisan package:discover
 
 # Copy application code
 COPY --chown=www-data:www-data . /var/www/html
