@@ -13,11 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // No custom middleware needed here - Laravel's built-in 'auth' middleware
-        // is guard-aware out of the box, so routes/web.php uses auth:admin,
-        // auth:teacher, and auth:student directly. Each automatically redirects
-        // to the matching login route because of $middleware->redirectGuestsTo()
-        // below.
+    $middleware->trustProxies(at: '*');
         $middleware->redirectGuestsTo(function ($request) {
             if ($request->is('teacher/*')) {
                 return route('teacher.login');
