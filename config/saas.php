@@ -9,7 +9,7 @@ return [
     // signup (e.g. "yourschool.{base_domain}"). Doesn't affect how tenant
     // resolution actually works - that's driven by the real request host.
     // Update this once you're on real hosting with wildcard subdomain DNS.
-    'base_domain' => env('SAAS_BASE_DOMAIN', 'yourproduct.com'),
+    'base_domain' => env('SAAS_BASE_DOMAIN', 'yourproduct.com', 'https://axispro-sms.onrender.com'),
 
     // Subdomains nobody is allowed to claim during signup, either because
     // they're needed for the platform itself (www, app, admin) or because
