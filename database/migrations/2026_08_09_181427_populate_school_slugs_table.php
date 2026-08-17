@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use App\Models\School;
 
 return new class extends Migration
 {
@@ -11,8 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('schools', function (Blueprint $table) {
-            //
+        School::whereNull('slug')->orWhere('slug', '')->get()->each(function ($school) {
+            $school->update([
+                'slug' => Str::slug($school->name),
+            ]);
         });
     }
 
@@ -21,8 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('schools', function (Blueprint $table) {
-            //
-        });
+        //
     }
 };
