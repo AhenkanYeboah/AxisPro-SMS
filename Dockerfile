@@ -26,7 +26,6 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Configure Apache DocumentRoot to point to Laravel's public directory
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
@@ -39,29 +38,22 @@ WORKDIR /var/www/html
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 
-# Copy remaining application code
-COPY . /var/www/html
-
-# 1. Create storage and cache directories with proper permissions
-RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
-    /var/www/html/storage/logs \
-    /var/www/html/bootstrap/cache \
-    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
-
-# 2. Run composer dump-autoload without executing post-autoload scripts
-RUN composer dump-autoload --optimize --no-dev --no-scripts
-
 # Copy application code
 COPY --chown=www-data:www-data . /var/www/html
 
-# Ensure storage directories exist and have proper permissions
+# Create storage and cache directories with proper permissions
 RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
     /var/www/html/storage/logs \
     /var/www/html/bootstrap/cache \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Run composer dump-autoload without executing post-autoload scripts
+RUN composer dump-autoload --optimize --no-dev --no-scripts
+
 EXPOSE 80
 
-# Build fresh config & route caches at runtime when environment variables are present
-CMD sh -c "php artisan config:cache && php artisan route:cache && php artisan migrate --force && apache2-foreground"
+# Build fresh config & route caches at runtime, run migrations, seed the
+# database (safe to re-run — DatabaseSeeder uses firstOrCreate throughout),
+# then start Apache
+CMD sh -c "php artisan config:cache && php artisan route:cache && php artisan migrate --force && php artisan db:seed --force && apache2-foreground"
