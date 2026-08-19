@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 class HomeController extends Controller
 {
     /**
-     * Render central marketing homepage for root application URL.
+     * Platform Central Marketing Page (Root URL: /)
+     * Renders your main platform landing page using resources/views/home.blade.php.
      */
     public function centralHome()
     {
@@ -16,7 +17,8 @@ class HomeController extends Controller
     }
 
     /**
-     * Render resolved school public homepage.
+     * School Tenant Homepage (/school-home)
+     * Renders the tenant-specific school page.
      */
     public function index(Request $request)
     {
@@ -26,7 +28,6 @@ class HomeController extends Controller
             $school = School::find(session('active_school_id'));
         }
 
-        // Fallback: If no school resolved, load the default first school record
         if (!$school) {
             $school = School::first();
         }
@@ -35,7 +36,15 @@ class HomeController extends Controller
             return redirect()->route('home');
         }
 
-        // Return 'home' because home.blade.php is in resources/views/
+        // Checks for dedicated school views first, fallback to home-generic or home
+        if (view()->exists('school.home')) {
+            return view('school.home', compact('school'));
+        }
+
+        if (view()->exists('home-generic')) {
+            return view('home-generic', compact('school'));
+        }
+
         return view('home', compact('school'));
     }
 }
