@@ -1,29 +1,37 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class HomeController extends Controller
 {
     /**
-     * Display the Central Platform Landing Page.
+     * Display the Central Marketing & Platform Landing Page.
+     * Served at the root URL (/) for central domain requests.
+     */
+    public function centralHome(Request $request): View
+    {
+        // Safety check: if a school/tenant context is active, render tenant view or redirect
+        if (app()->bound('currentTenant')) {
+            $tenant = app('currentTenant');
+            return view('school.home', compact('tenant'));
+        }
+
+        return view('central.landing', [
+            'appName' => config('app.name'),
+        ]);
+    }
+
+    /**
+     * Display the Tenant / School Homepage.
+     * Served for tenant subdomains or specific school landing routes.
      */
     public function index(Request $request): View
     {
-        // Explicitly check if a tenant is accidentally bound in context
-        if (app()->bound('currentTenant')) {
-            $tenant = app('currentTenant');
-            
-            // Optional safety fallback: redirect or render tenant view if routed incorrectly
-            return view('tenant.landing', compact('tenant'));
-        }
+        $tenant = app()->bound('currentTenant') ? app('currentTenant') : null;
 
-        // Render the central platform landing page view
-        return view('platform.landing', [
-            'appName' => config('app.name'),
-        ]);
+        return view('school.home', compact('tenant'));
     }
 }
