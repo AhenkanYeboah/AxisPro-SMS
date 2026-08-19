@@ -22,7 +22,7 @@ class PlatformAdmin extends Authenticatable
     protected function casts(): array
     {
         return [
-            // Removed 'password' => 'hashed' to prevent conflict with manual Hash::check()
+            'password' => 'hashed',
         ];
     }
 }
