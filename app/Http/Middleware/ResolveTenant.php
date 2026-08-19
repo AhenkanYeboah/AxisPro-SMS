@@ -16,23 +16,38 @@ class ResolveTenant
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Skip tenant resolution for admin portal, API routes, or global endpoints
-        if ($request->is('admin*') || $request->is('api*')) {
+        // 1. Explicitly bypass platform admin routes
+        if ($request->is('platform*') || $request->is('api*')) {
             return $next($request);
         }
 
-        // 2. Extract tenant slug from path segment: /school/{slug}/*
-        $slug = $request->segment(2); // Get second URL segment
+        $school = null;
 
-        if ($request->segment(1) === 'school' && $slug) {
+        // 2. Extract tenant slug from URL: /school/{slug}/*
+        if ($request->segment(1) === 'school' && $request->segment(2)) {
+            $slug = $request->segment(2);
             $school = School::where('slug', $slug)->first();
 
             if (!$school) {
                 abort(404, 'School tenant not found.');
             }
+        } 
+        // 3. Fallback for /admin/* routes: resolve school from authenticated admin or session
+        elseif (auth('admin')->check()) {
+            $admin = auth('admin')->user();
+            if (isset($admin->school_id)) {
+                $school = School::find($admin->school_id);
+            } elseif (method_exists($admin, 'school')) {
+                $school = $admin->school;
+            }
+        } elseif (session()->has('current_school_id')) {
+            $school = School::find(session('current_school_id'));
+        }
 
-            // Bind current school instance to Laravel Container & Session
+        // 4. Bind resolved school globally into the container and session
+        if ($school) {
             app()->instance('currentSchool', $school);
+            app()->instance(School::class, $school);
             session(['current_school_id' => $school->id]);
         }
 
