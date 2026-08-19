@@ -2,26 +2,34 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\View\View;
+use App\Models\School;
+use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
-    public function index(): View
+    /**
+     * Render central marketing homepage for non-tenant hits.
+     */
+    public function centralHome()
     {
-        // Safe container check that verifies 'currentSchool' exists and is not null
-        $school = app()->has('currentSchool') ? app('currentSchool') : null;
+        return view('welcome');
+    }
+
+    /**
+     * Render resolved school public homepage.
+     */
+    public function index(Request $request)
+    {
+        $school = view()->shared('currentSchool');
+
+        if (!$school && session()->has('active_school_id')) {
+            $school = School::find(session('active_school_id'));
+        }
 
         if (!$school) {
-            // No subdomain/tenant matched a school - return central marketing page
-            return view('platform.home');
+            return redirect()->route('home');
         }
 
-        // Royal Countryside Academy legacy view check (handles slug or subdomain)
-        $identifier = $school->subdomain ?? $school->slug ?? '';
-        if ($identifier === 'royalcountrysideacademy') {
-            return view('home');
-        }
-
-        return view('home-generic', ['school' => $school]);
+        return view('school.home', compact('school'));
     }
 }
