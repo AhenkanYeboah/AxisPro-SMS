@@ -26,7 +26,7 @@ class ResolveTenant
         // 2. Extract tenant slug from URL: /school/{slug}/*
         if ($request->segment(1) === 'school' && $request->segment(2)) {
             $slug = $request->segment(2);
-            $school = School::where('slug', $slug)->first();
+            $school = School::where('slug', $slug)->orWhere('subdomain', $slug)->first();
 
             if (!$school) {
                 abort(404, 'School tenant not found.');
