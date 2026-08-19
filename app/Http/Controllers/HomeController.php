@@ -8,8 +8,8 @@ use Illuminate\Http\Request;
 class HomeController extends Controller
 {
     /**
-     * Platform Central Marketing Page (Root URL: /)
-     * Renders your main platform landing page using resources/views/home.blade.php.
+     * Central Platform Marketing Page (Root URL: /)
+     * Pure platform landing page—no school data passed or required.
      */
     public function centralHome()
     {
@@ -17,8 +17,8 @@ class HomeController extends Controller
     }
 
     /**
-     * School Tenant Homepage (/school-home)
-     * Renders the tenant-specific school page.
+     * Tenant School Homepage (/school-home)
+     * Renders tenant view with school context.
      */
     public function index(Request $request)
     {
@@ -36,7 +36,7 @@ class HomeController extends Controller
             return redirect()->route('home');
         }
 
-        // Checks for dedicated school views first, fallback to home-generic or home
+        // Render dedicated school template if available
         if (view()->exists('school.home')) {
             return view('school.home', compact('school'));
         }
