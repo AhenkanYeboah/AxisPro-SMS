@@ -3,53 +3,37 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use App\Models\School;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use App\Models\School;
 
 class ResolveTenant
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     */
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Explicitly bypass platform admin routes
-        if ($request->is('platform*') || $request->is('api*')) {
+        $path = $request->path();
+
+        // Exempt central system paths from tenant resolution
+        if (str_starts_with($path, 'platform') || $path === 'signup' || $path === '/') {
             return $next($request);
         }
 
-        $school = null;
+        $host = $request->getHost();
+        $subdomain = explode('.', $host)[0];
 
-        // 2. Extract tenant slug from URL: /school/{slug}/*
-        if ($request->segment(1) === 'school' && $request->segment(2)) {
-            $slug = $request->segment(2);
-            $school = School::where('slug', $slug)->orWhere('subdomain', $slug)->first();
+        // Dev fallback or subdomain matching
+        $school = School::where('slug', $subdomain)->first();
 
-            if (!$school) {
-                abort(404, 'School tenant not found.');
-            }
-        } 
-        // 3. Fallback for /admin/* routes: resolve school from authenticated admin or session
-        elseif (auth('admin')->check()) {
-            $admin = auth('admin')->user();
-            if (isset($admin->school_id)) {
-                $school = School::find($admin->school_id);
-            } elseif (method_exists($admin, 'school')) {
-                $school = $admin->school;
-            }
-        } elseif (session()->has('current_school_id')) {
-            $school = School::find(session('current_school_id'));
+        if (!$school && config('app.env') === 'local') {
+            $school = School::first();
         }
 
-        // 4. Bind resolved school globally into the container and session
-        if ($school) {
-            app()->instance('currentSchool', $school);
-            app()->instance(School::class, $school);
-            session(['current_school_id' => $school->id]);
+        if (!$school) {
+            abort(404, 'School tenant not resolved.');
         }
+
+        session(['active_school_id' => $school->id]);
+        view()->share('currentSchool', $school);
 
         return $next($request);
     }
