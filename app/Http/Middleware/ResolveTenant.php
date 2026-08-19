@@ -29,10 +29,16 @@ class ResolveTenant
         }
 
         if (!$school) {
+            // Fall back to first school if visiting main domain directly (e.g. on Render)
+            $school = School::first();
+        }
+
+        if (!$school) {
             abort(404, 'School tenant not resolved.');
         }
 
         session(['active_school_id' => $school->id]);
+        app()->instance('currentSchool', $school);
         view()->share('currentSchool', $school);
 
         return $next($request);
