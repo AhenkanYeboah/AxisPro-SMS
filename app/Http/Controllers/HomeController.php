@@ -1,35 +1,40 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Middleware;
 
+use Closure;
 use App\Models\School;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-class HomeController extends Controller
+class ResolveTenant
 {
-    /**
-     * Render central marketing homepage for non-tenant hits.
-     */
-    public function centralHome()
+    public function handle(Request $request, Closure $next): Response
     {
-        return view('welcome');
-    }
+        $path = $request->path();
 
-    /**
-     * Render resolved school public homepage.
-     */
-    public function index(Request $request)
-    {
-        $school = view()->shared('currentSchool');
+        // Exempt central system paths from tenant resolution
+        if (str_starts_with($path, 'platform') || $path === 'signup' || $path === '/') {
+            return $next($request);
+        }
 
-        if (!$school && session()->has('active_school_id')) {
-            $school = School::find(session('active_school_id'));
+        $host = $request->getHost();
+        $subdomain = explode('.', $host)[0];
+
+        // Dev fallback or subdomain matching
+        $school = School::where('slug', $subdomain)->first();
+
+        if (!$school && config('app.env') === 'local') {
+            $school = School::first();
         }
 
         if (!$school) {
-            return redirect()->route('home');
+            abort(404, 'School tenant not resolved.');
         }
 
-        return view('school.home', compact('school'));
+        session(['active_school_id' => $school->id]);
+        view()->share('currentSchool', $school);
+
+        return $next($request);
     }
 }
