@@ -58,7 +58,6 @@ Route::get('/', [HomeController::class, 'centralHome'])->name('home');
 // ──────────────────────────────────────────────────────────────
 // TENANT SCHOOL HOMEPAGE & PUBLIC PAGES
 // School home resolution for tenant subdomains/contexts.
-// Home button inside student, teacher, and admin layouts resolves here.
 // ──────────────────────────────────────────────────────────────
 Route::get('/school-home', [HomeController::class, 'index'])->name('school.home');
 Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
