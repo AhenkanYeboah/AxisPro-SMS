@@ -39,17 +39,7 @@ use Illuminate\Support\Facades\Storage;
 
 // ──────────────────────────────────────────────────────────────
 // UPLOADED FILE FALLBACK
-// `php artisan storage:link` creates public/storage as a symlink to
-// storage/app/public so the web server can serve uploaded files (results,
-// assignments, exam papers, etc.) directly. That symlink doesn't reliably
-// survive being zipped/unzipped, especially on Windows, which is why
-// uploaded-file links sometimes 404/403 after a fresh deploy.
-//
-// This route is a safety net: if the symlink is missing or broken, any
-// request under /storage/... falls through here instead of failing, and
-// Laravel serves the file straight from the public disk. When the symlink
-// IS present and working, the web server serves the static file directly
-// and this route is never even reached - so it's harmless either way.
+// Fallback route for served static uploads when public symlink is bypassed.
 // ──────────────────────────────────────────────────────────────
 Route::get('/storage/{path}', function (string $path) {
     if (!Storage::disk('public')->exists($path)) {
@@ -60,43 +50,28 @@ Route::get('/storage/{path}', function (string $path) {
 })->where('path', '.*')->name('storage.fallback');
 
 // ──────────────────────────────────────────────────────────────
-// PUBLIC PAGES
-// In the original file these were: ?page=home, ?page=activities, ?page=form
-// Each Route::get() below replaces one branch of that if/elseif chain.
+// CENTRAL MARKETING & PUBLIC LANDING
+// Central landing page served at the root application URL.
 // ──────────────────────────────────────────────────────────────
-Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/', [HomeController::class, 'centralHome'])->name('home');
 
-// A second path to the exact same controller/logic as '/' above -
-// deliberately not the bare root path. ResolveTenant excludes '/'
-// specifically from its local-dev subdomain fallback (see that
-// middleware's comments), so that root always shows AxisPro's own central
-// marketing page even locally, which is correct for a first-time visitor
-// landing on an unmatched domain. But that same exclusion broke "Home"
-// links inside an already-logged-in dashboard: a teacher/admin/student
-// clicking Home expects THEIR school's public homepage, not AxisPro's
-// signup page, and every dashboard nav was pointing at '/' and hitting
-// that exclusion. This path isn't excluded, so ResolveTenant resolves the
-// current school normally (via real subdomain in production, or the dev
-// fallback locally) before HomeController runs - same controller, same
-// view logic, just reachable without tripping the root-path special case.
-// Every "Home" nav link inside admin/teacher/student layouts uses this,
-// not route('home') - see resources/views/{admin,teacher,student}/*.
+// ──────────────────────────────────────────────────────────────
+// TENANT SCHOOL HOMEPAGE & PUBLIC PAGES
+// School home resolution for tenant subdomains/contexts.
+// Home button inside student, teacher, and admin layouts resolves here.
+// ──────────────────────────────────────────────────────────────
 Route::get('/school-home', [HomeController::class, 'index'])->name('school.home');
-
 Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
 
 // ──────────────────────────────────────────────────────────────
-// SCHOOL SIGNUP (SaaS onboarding) — this is the one tenant-agnostic entry
-// point in the app: it's how a new School row (and its first admin) come
-// to exist at all. Every other route below assumes a school has already
-// been resolved from the subdomain by ResolveTenant middleware.
+// SCHOOL SIGNUP (SaaS Onboarding)
 // ──────────────────────────────────────────────────────────────
 Route::get('/signup', [SchoolSignupController::class, 'create'])->name('school.signup');
 Route::post('/signup', [SchoolSignupController::class, 'store'])->name('school.signup.store');
 Route::get('/signup/{school}/success', [SchoolSignupController::class, 'success'])->name('school.signup.success');
 
 // ──────────────────────────────────────────────────────────────
-// STUDENT: registration, password setup, login/logout, dashboard
+// STUDENT: Registration, Auth, and Dashboard
 // ──────────────────────────────────────────────────────────────
 Route::get('/enroll', [StudentAuthController::class, 'showForm'])->name('student.form');
 Route::post('/enroll', [StudentAuthController::class, 'register'])->name('student.register');
@@ -111,39 +86,25 @@ Route::post('/student/login', [StudentAuthController::class, 'login'])
 Route::post('/student/logout', [StudentAuthController::class, 'logout'])->name('student.logout');
 
 Route::middleware('auth:student')->group(function () {
-    // Exam access is intentionally NOT gated by 'admitted' - this is
-    // exactly the pre-admission access an applicant is supposed to have.
-    // See EnsureStudentAdmitted's docblock.
     Route::get('/student/exam', [StudentExamController::class, 'show'])->name('student.exam');
     Route::post('/student/exam', [StudentExamController::class, 'submit'])->name('student.exam.submit');
-
-    // Landing page for a logged-in-but-not-yet-admitted applicant -
-    // EnsureStudentAdmitted redirects here instead of letting them reach
-    // the real portal. See StudentAuthController::applicationStatus().
     Route::get('/student/application-status', [StudentAuthController::class, 'applicationStatus'])->name('student.application-status');
 
-    // The real student portal - everything below only opens once an
-    // admin has explicitly admitted this student (status='active').
     Route::middleware('admitted')->group(function () {
         Route::get('/student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
-
         Route::get('/student/assignments', [StudentAssignmentController::class, 'index'])->name('student.assignments');
         Route::post('/student/assignments/{assignment}/submit', [StudentAssignmentController::class, 'submit'])->name('student.assignments.submit');
         Route::get('/student/results', [StudentAssignmentController::class, 'results'])->name('student.results');
-
         Route::get('/student/timetable', [TimetableController::class, 'studentIndex'])->name('student.timetable');
-
         Route::get('/student/report-card', [ReportCardController::class, 'studentIndex'])->name('student.report-card');
-
         Route::get('/student/fees', [StudentDashboardFeeController::class, 'index'])->name('student.fees');
-
         Route::get('/student/virtual-classes', [StudentVirtualClassController::class, 'index'])->name('student.virtual-classes');
         Route::get('/student/virtual-classes/{virtualClass}/join', [StudentVirtualClassController::class, 'join'])->name('student.virtual-classes.join');
     });
 });
 
 // ──────────────────────────────────────────────────────────────
-// TEACHER: signup handled by admin elsewhere; login is 2-step (password, then OTP)
+// TEACHER: Authentication, Dashboard, and AI Assistant
 // ──────────────────────────────────────────────────────────────
 Route::get('/teacher/login', [TeacherAuthController::class, 'showLogin'])->name('teacher.login');
 Route::post('/teacher/login', [TeacherAuthController::class, 'login'])
@@ -162,7 +123,6 @@ Route::post('/teacher/verify', [TeacherAuthController::class, 'verify'])
 
 Route::get('/teacher/set-password', [TeacherAuthController::class, 'showSetPassword'])->name('teacher.set-password');
 Route::post('/teacher/set-password', [TeacherAuthController::class, 'setPassword'])->name('teacher.set-password.submit');
-
 Route::post('/teacher/logout', [TeacherAuthController::class, 'logout'])->name('teacher.logout');
 
 Route::middleware('auth:teacher')->group(function () {
@@ -188,30 +148,19 @@ Route::middleware('auth:teacher')->group(function () {
     Route::post('/teacher/students/{student}/promote', [TeacherDashboardController::class, 'promote'])->name('teacher.students.promote');
     Route::post('/teacher/students/{student}/repeat', [TeacherDashboardController::class, 'repeat'])->name('teacher.students.repeat');
 
-    // ──────────────────────────────────────────────────────────
-    // AI RESEARCH ASSISTANT - curriculum-grounded teaching material,
-    // scoped to the teacher's own assigned class_level and its
-    // curriculum. See ResearchAssistantController and
-    // TeachingMaterialGenerationService for the grounding mechanism.
-    // ──────────────────────────────────────────────────────────
     Route::get('/teacher/research-assistant', [ResearchAssistantController::class, 'index'])->name('teacher.research-assistant');
     Route::post('/teacher/research-assistant', [ResearchAssistantController::class, 'store'])
-        ->middleware('throttle:6,1') // 6/minute - burst protection distinct from the daily cost cap enforced in the controller (config('services.anthropic.daily_limit_per_teacher'))
+        ->middleware('throttle:6,1')
         ->name('teacher.research-assistant.store');
     Route::post('/teacher/research-assistant/{researchRequest}/helpful', [ResearchAssistantController::class, 'markHelpful'])->name('teacher.research-assistant.helpful');
 
-    // ──────────────────────────────────────────────────────────
-    // VIRTUAL CLASSES - Zoom (S2S OAuth, when configured), Jitsi
-    // (zero-setup fallback), or a pasted external link. See
-    // VirtualClassController and ZoomService.
-    // ──────────────────────────────────────────────────────────
     Route::get('/teacher/virtual-classes', [VirtualClassController::class, 'index'])->name('teacher.virtual-classes');
     Route::post('/teacher/virtual-classes', [VirtualClassController::class, 'store'])->name('teacher.virtual-classes.store');
     Route::post('/teacher/virtual-classes/{virtualClass}/cancel', [VirtualClassController::class, 'cancel'])->name('teacher.virtual-classes.cancel');
 });
 
 // ──────────────────────────────────────────────────────────────
-// ADMIN: login only (one hardcoded admin account, seeded — no signup), dashboard, student management, activities CRUD
+// SCHOOL ADMIN: Portal Management
 // ──────────────────────────────────────────────────────────────
 Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
 Route::post('/admin/login', [AdminAuthController::class, 'login'])
@@ -226,31 +175,14 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/settings', [SchoolSettingsController::class, 'update'])->name('admin.settings.update');
     Route::post('/admin/settings/curricula', [SchoolSettingsController::class, 'updateCurricula'])->name('admin.settings.curricula');
 
-    // ──────────────────────────────────────────────────────────
-    // CLASS LEVELS - the real entity that replaced freetext `class`
-    // strings across students/assignments/timetables/fee_items/notices/
-    // teachers. See AdminClassLevelController and the class_levels
-    // migration for background.
-    // ──────────────────────────────────────────────────────────
     Route::get('/admin/class-levels', [AdminClassLevelController::class, 'index'])->name('admin.class-levels.index');
     Route::post('/admin/class-levels', [AdminClassLevelController::class, 'store'])->name('admin.class-levels.store');
     Route::put('/admin/class-levels/{classLevel}', [AdminClassLevelController::class, 'update'])->name('admin.class-levels.update');
     Route::delete('/admin/class-levels/{classLevel}', [AdminClassLevelController::class, 'destroy'])->name('admin.class-levels.destroy');
 
-    // ──────────────────────────────────────────────────────────
-    // TEACHERS - view/fix a teacher's class assignment. Didn't exist
-    // before; needed specifically to fix teachers whose class_level_id
-    // never got set (e.g. registered before the signup form linked to
-    // real class_levels rows). See AdminTeacherController.
-    // ──────────────────────────────────────────────────────────
     Route::get('/admin/teachers', [AdminTeacherController::class, 'index'])->name('admin.teachers.index');
     Route::put('/admin/teachers/{teacher}', [AdminTeacherController::class, 'update'])->name('admin.teachers.update');
 
-    // ──────────────────────────────────────────────────────────
-    // SCHOOL'S OWN EXEMPLAR BANK - separate from the platform-curated one
-    // at /platform/curriculum-exemplars. See AdminExemplarController and
-    // the curriculum_exemplars migration (school_id column).
-    // ──────────────────────────────────────────────────────────
     Route::get('/admin/exemplars', [AdminExemplarController::class, 'index'])->name('admin.exemplars.index');
     Route::post('/admin/exemplars', [AdminExemplarController::class, 'store'])->name('admin.exemplars.store');
     Route::post('/admin/research-requests/{researchRequest}/promote', [AdminExemplarController::class, 'promote'])->name('admin.research-requests.promote');
@@ -276,11 +208,6 @@ Route::middleware('auth:admin')->group(function () {
     Route::put('/activities/{activity}', [ActivityController::class, 'update'])->name('activities.update');
     Route::delete('/activities/{activity}', [ActivityController::class, 'destroy'])->name('activities.destroy');
 
-    // ──────────────────────────────────────────────────────────
-    // FEES & BILLS - school's own students/parents paying the school.
-    // NOT platform subscription billing (school paying RCA-SaaS) - see
-    // 'platform.billing.*' routes for that.
-    // ──────────────────────────────────────────────────────────
     Route::get('/admin/fees', [AdminFeeController::class, 'index'])->name('admin.fees.index');
     Route::post('/admin/fees', [AdminFeeController::class, 'store'])->name('admin.fees.store');
     Route::delete('/admin/fees/{feeItem}', [AdminFeeController::class, 'destroy'])->name('admin.fees.destroy');
@@ -290,26 +217,16 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/student-fees/{studentFee}/payments', [AdminFeeController::class, 'recordPayment'])->name('admin.student-fees.payments.store');
     Route::post('/admin/student-fees/{studentFee}/waive', [AdminFeeController::class, 'waive'])->name('admin.student-fees.waive');
 
-    // ──────────────────────────────────────────────────────────
-    // NOTICES - email/SMS messages to parents. Reused by the fee flow
-    // (StudentFeeAssignedMail) and available standalone here for general
-    // announcements.
-    // ──────────────────────────────────────────────────────────
     Route::get('/admin/notices', [AdminNoticeController::class, 'index'])->name('admin.notices.index');
     Route::post('/admin/notices', [AdminNoticeController::class, 'store'])->name('admin.notices.store');
     Route::get('/admin/notices/{notice}', [AdminNoticeController::class, 'show'])->name('admin.notices.show');
 });
 
-// Paystack's server-to-server webhook. No admin auth (Paystack isn't logged
-// in as anyone) and no CSRF (see bootstrap/app.php/VerifyCsrfToken exclusion)
-// - authenticity here comes from the HMAC signature check inside the
-// controller itself, not from Laravel's session-based protections.
 Route::post('/paystack/webhook', [PaystackWebhookController::class, 'handle'])->name('paystack.webhook');
 
 // ──────────────────────────────────────────────────────────────
-// PLATFORM ADMIN (you) - manages every school. Runs on the 'platform' guard,
-// entirely separate from any school's 'admin' guard, and exempted from
-// ResolveTenant (see EXEMPT_PATH_PATTERNS) since it isn't scoped to one school.
+// PLATFORM ADMIN ROUTING
+// Central owner control panel isolated from individual school scopes.
 // ──────────────────────────────────────────────────────────────
 Route::get('/platform/login', [PlatformAuthController::class, 'showLogin'])->name('platform.login');
 Route::post('/platform/login', [PlatformAuthController::class, 'login'])
@@ -324,22 +241,9 @@ Route::middleware('auth:platform')->group(function () {
     Route::post('/platform/schools/{school}/reactivate', [PlatformDashboardController::class, 'reactivate'])->name('platform.schools.reactivate');
     Route::post('/platform/schools/{school}/extend-trial', [PlatformDashboardController::class, 'extendTrial'])->name('platform.schools.extend-trial');
 
-    // ──────────────────────────────────────────────────────────
-    // PLATFORM SUBSCRIPTION BILLING (Paystack) - a school paying RCA-SaaS
-    // (you) for use of the platform. This is NOT school fees (school's own
-    // students/parents paying the school) - see the 'admin.fees.*' routes
-    // below for that. Scoped per-school via route model binding since a
-    // platform admin manages many schools at once.
-    // ──────────────────────────────────────────────────────────
     Route::get('/platform/schools/{school}/billing', [PlatformBillingController::class, 'show'])->name('platform.billing.show');
     Route::post('/platform/schools/{school}/billing/checkout', [PlatformBillingController::class, 'checkout'])->name('platform.billing.checkout');
 
-    // ──────────────────────────────────────────────────────────
-    // CURRICULUM DOCUMENTS - the RAG grounding source for the research
-    // assistant. Managed at the platform level (not per-school) since
-    // documents/subjects/curricula are shared reference data - see
-    // curriculum_documents migration.
-    // ──────────────────────────────────────────────────────────
     Route::get('/platform/curriculum-documents', [CurriculumDocumentController::class, 'index'])->name('platform.curriculum-documents.index');
     Route::post('/platform/curriculum-documents', [CurriculumDocumentController::class, 'store'])->name('platform.curriculum-documents.store');
     Route::get('/platform/curriculum-documents/{document}', [CurriculumDocumentController::class, 'show'])->name('platform.curriculum-documents.show');
@@ -348,19 +252,10 @@ Route::middleware('auth:platform')->group(function () {
     Route::put('/platform/curriculum-document-chunks/{chunk}', [CurriculumDocumentController::class, 'updateChunk'])->name('platform.curriculum-document-chunks.update');
     Route::delete('/platform/curriculum-document-chunks/{chunk}', [CurriculumDocumentController::class, 'destroyChunk'])->name('platform.curriculum-document-chunks.destroy');
 
-    // ──────────────────────────────────────────────────────────
-    // CURRICULUM EXEMPLARS - curated few-shot bank, authored directly or
-    // promoted from teacher-approved research_requests. See
-    // CurriculumExemplarController.
-    // ──────────────────────────────────────────────────────────
     Route::get('/platform/curriculum-exemplars', [CurriculumExemplarController::class, 'index'])->name('platform.curriculum-exemplars.index');
     Route::post('/platform/curriculum-exemplars', [CurriculumExemplarController::class, 'store'])->name('platform.curriculum-exemplars.store');
     Route::post('/platform/research-requests/{researchRequest}/promote', [CurriculumExemplarController::class, 'promote'])->name('platform.research-requests.promote');
     Route::delete('/platform/curriculum-exemplars/{exemplar}', [CurriculumExemplarController::class, 'destroy'])->name('platform.curriculum-exemplars.destroy');
 });
 
-// Paystack redirects the browser back here after checkout. Deliberately
-// outside auth:platform - the platform admin's session may have expired
-// during the trip to Paystack's site, and we still want to show a clear
-// success/failure message rather than bouncing them to a login screen.
 Route::get('/platform/schools/{school}/billing/callback', [PlatformBillingController::class, 'callback'])->name('platform.billing.callback');
