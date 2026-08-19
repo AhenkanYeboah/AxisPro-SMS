@@ -56,4 +56,4 @@ EXPOSE 80
 # Build fresh config & route caches at runtime, run migrations, seed the
 # database (safe to re-run — DatabaseSeeder uses firstOrCreate throughout),
 # then start Apache
-CMD sh -c "php artisan config:cache && php artisan route:cache && php artisan migrate --force && php artisan db:seed --force && apache2-foreground"
+CMD sh -c "ls -la /var/www/html/app/Models/ && php artisan config:cache && php artisan route:cache && php artisan migrate --force && php artisan tinker --execute=\"var_dump(class_exists('App\\\\Models\\\\School'));\" && php artisan db:seed --force && apache2-foreground"
