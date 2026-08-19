@@ -43,7 +43,6 @@ class SchoolSignupController extends Controller
             'curricula.*' => 'integer|exists:curricula,id',
         ]);
 
-        // Creating school with auto-generated slug for path-based routing
         $school = School::create([
             'name' => $data['school_name'],
             'slug' => Str::slug($data['school_name']),
