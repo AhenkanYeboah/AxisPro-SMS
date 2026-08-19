@@ -9,38 +9,44 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ResolveTenant
 {
+    /**
+     * Handle an incoming request.
+     */
     public function handle(Request $request, Closure $next): Response
     {
-        $path = $request->path();
-
-        // Exempt central system paths from tenant resolution
-        if (str_starts_with($path, 'platform') || $path === 'signup' || $path === '/') {
+        // 1. Skip tenant resolution completely for central platform routes
+        if ($this->isPlatformRoute($request)) {
             return $next($request);
         }
 
-        $host = $request->getHost();
-        $subdomain = explode('.', $host)[0];
+        // 2. Resolve school for tenant routes
+        $school = null;
 
-        // Dev fallback or subdomain matching
-        $school = School::where('slug', $subdomain)->first();
-
-        if (!$school && config('app.env') === 'local') {
-            $school = School::first();
+        // Check subdomain or session
+        if (session()->has('active_school_id')) {
+            $school = School::find(session('active_school_id'));
+        } else {
+            $school = School::first(); // Fallback default
         }
 
-        if (!$school) {
-            // Fall back to first school if visiting main domain directly (e.g. on Render)
-            $school = School::first();
+        if ($school) {
+            // Share current school globally across views
+            view()->share('currentSchool', $school);
+            app()->instance('currentSchool', $school);
         }
-
-        if (!$school) {
-            abort(404, 'School tenant not resolved.');
-        }
-
-        session(['active_school_id' => $school->id]);
-        app()->instance('currentSchool', $school);
-        view()->share('currentSchool', $school);
 
         return $next($request);
+    }
+
+    /**
+     * Determine if the current request belongs to central platform routes.
+     */
+    protected function isPlatformRoute(Request $request): bool
+    {
+        // Add any public/platform paths that should NEVER trigger school scoping
+        return $request->is('/') 
+            || $request->is('platform*') 
+            || $request->is('signup*') 
+            || $request->is('paystack*');
     }
 }
