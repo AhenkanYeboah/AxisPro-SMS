@@ -1,50 +1,29 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Controllers;
 
-use App\Models\School;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class HomeController extends Controller
 {
     /**
-     * Central Platform Marketing Page (Root URL: /)
-     * Pure platform landing page—no school data passed or required.
+     * Display the Central Platform Landing Page.
      */
-    public function centralHome()
+    public function index(Request $request): View
     {
-        return view('home');
-    }
-
-    /**
-     * Tenant School Homepage (/school-home)
-     * Renders tenant view with school context.
-     */
-    public function index(Request $request)
-    {
-        $school = view()->shared('currentSchool');
-
-        if (!$school && session()->has('active_school_id')) {
-            $school = School::find(session('active_school_id'));
+        // Explicitly check if a tenant is accidentally bound in context
+        if (app()->bound('currentTenant')) {
+            $tenant = app('currentTenant');
+            
+            // Optional safety fallback: redirect or render tenant view if routed incorrectly
+            return view('tenant.landing', compact('tenant'));
         }
 
-        if (!$school) {
-            $school = School::first();
-        }
-
-        if (!$school) {
-            return redirect()->route('home');
-        }
-
-        // Render dedicated school template if available
-        if (view()->exists('school.home')) {
-            return view('school.home', compact('school'));
-        }
-
-        if (view()->exists('home-generic')) {
-            return view('home-generic', compact('school'));
-        }
-
-        return view('home', compact('school'));
+        // Render the central platform landing page view
+        return view('platform.landing', [
+            'appName' => config('app.name'),
+        ]);
     }
 }
