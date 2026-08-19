@@ -8,22 +8,17 @@ class HomeController extends Controller
 {
     public function index(): View
     {
-        if (!app()->bound('currentSchool')) {
-            // No subdomain matched a school at all - this is AxisPro's own
-            // central marketing page, not any customer's homepage.
+        // Safe container check that verifies 'currentSchool' exists and is not null
+        $school = app()->has('currentSchool') ? app('currentSchool') : null;
+
+        if (!$school) {
+            // No subdomain/tenant matched a school - return central marketing page
             return view('platform.home');
         }
 
-        $school = app('currentSchool');
-
-        // Royal Countryside Academy is the original single-school build
-        // this whole product grew out of. Their homepage (resources/views/
-        // home.blade.php) is preserved hand-built and untouched rather than
-        // retrofitted into the generic per-school template below, so
-        // nothing about their page shifts as a side effect of every other
-        // school getting one. Every school after them gets the dynamic
-        // template, branded from their own Settings.
-        if ($school->subdomain === 'royalcountrysideacademy') {
+        // Royal Countryside Academy legacy view check (handles slug or subdomain)
+        $identifier = $school->subdomain ?? $school->slug ?? '';
+        if ($identifier === 'royalcountrysideacademy') {
             return view('home');
         }
 
