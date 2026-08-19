@@ -3,50 +3,44 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use App\Models\School;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
+use App\Models\School; // Replace with your Tenant model if different
 
 class ResolveTenant
 {
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next)
     {
-        // 1. Skip tenant resolution completely for central platform routes
-        if ($this->isPlatformRoute($request)) {
+        $centralDomains = [
+            config('app.url'),
+            'localhost',
+            '127.0.0.1',
+            // Add your main production domain here (e.g., 'platform.com')
+        ];
+
+        $host = parse_url($request->getHttpHost(), PHP_URL_HOST) ?? $request->getHost();
+
+        // Check if the current host matches central domains or explicit central routes
+        if (in_array($host, $centralDomains, true) || $request->is('admin*') || $request->is('platform*')) {
+            // Bypass tenant resolution and clear any active tenant context
+            app()->forgetInstance('currentTenant');
             return $next($request);
         }
 
-        // 2. Resolve school for tenant routes
-        $school = null;
+        // Proceed with standard tenant resolution logic
+        $tenant = School::where('domain', $host)
+            ->orWhere('slug', explode('.', $host)[0])
+            ->first();
 
-        // Check subdomain or session
-        if (session()->has('active_school_id')) {
-            $school = School::find(session('active_school_id'));
-        } else {
-            $school = School::first(); // Fallback default
+        if (!$tenant) {
+            abort(404, 'School or Tenant not found.');
         }
 
-        if ($school) {
-            // Share current school globally across views
-            view()->share('currentSchool', $school);
-            app()->instance('currentSchool', $school);
-        }
+        // Bind resolved tenant to application context
+        app()->instance('currentTenant', $tenant);
 
         return $next($request);
-    }
-
-    /**
-     * Determine if the current request belongs to central platform routes.
-     */
-    protected function isPlatformRoute(Request $request): bool
-    {
-        // Add any public/platform paths that should NEVER trigger school scoping
-        return $request->is('/') 
-            || $request->is('platform*') 
-            || $request->is('signup*') 
-            || $request->is('paystack*');
     }
 }
