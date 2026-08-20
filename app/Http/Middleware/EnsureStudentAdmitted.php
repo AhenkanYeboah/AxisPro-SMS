@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\PlatformAdmin;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,9 +29,25 @@ class EnsureStudentAdmitted
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $student = Auth::guard('student')->user();
+        $user = $request->user();
 
-        if ($student && $student->status !== 'active') {
+        // 1. PlatformAdmin bypasses student admission & tenant checks
+        if ($user instanceof PlatformAdmin) {
+            return $next($request);
+        }
+
+        // 2. Tenant isolation verification
+        $currentSchool = app()->has('currentSchool') ? app('currentSchool') : null;
+        $activeSchoolId = $currentSchool->id ?? session('active_school_id') ?? $user?->school_id ?? null;
+
+        if (!$activeSchoolId) {
+            abort(403, 'Unauthorized. Account is not associated with an active school tenant.');
+        }
+
+        // 3. Admission status check for students (uses student guard or authenticated user)
+        $student = Auth::guard('student')->user() ?? $user;
+
+        if ($student && method_exists($student, 'fullName') && $student->status !== 'active') {
             return redirect()->route('student.application-status');
         }
 
