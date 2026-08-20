@@ -9,7 +9,6 @@ class HomeController extends Controller
 {
     /**
      * Central Platform Marketing Page (Root URL: /)
-     * Pure platform landing page - no school data passed or required.
      */
     public function centralHome()
     {
@@ -18,7 +17,6 @@ class HomeController extends Controller
 
     /**
      * Tenant School Homepage (/school-home)
-     * Renders tenant view with school context.
      */
     public function index(Request $request)
     {
@@ -29,17 +27,10 @@ class HomeController extends Controller
         }
 
         if (!$school) {
-            // No tenant resolved - do NOT fall back to School::first().
-            // Silently defaulting to "the first school in the table" means
-            // every unmatched/ambiguous request quietly renders RCA's data,
-            // which is exactly how the platform root page got replaced by
-            // RCA's homepage. Send unresolved requests to the central
-            // marketing page instead.
-            return redirect()->route('home');
+            // Render the platform view directly instead of sending an HTTP redirect
+            return view('platform.home');
         }
 
-        // Royal Countryside Academy keeps its own bespoke branded template.
-        // Every other tenant gets the shared generic per-school template.
         $identifier = $school->subdomain ?? $school->slug ?? '';
 
         if ($identifier === 'royalcountrysideacademy' && view()->exists('home')) {
@@ -50,6 +41,6 @@ class HomeController extends Controller
             return view('home-generic', compact('school'));
         }
 
-        return redirect()->route('home');
+        return view('platform.home');
     }
 }
