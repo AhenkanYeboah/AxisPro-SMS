@@ -46,7 +46,7 @@ use Illuminate\Support\Facades\Storage;
 | platform management, and system-wide webhooks/assets.
 |
 */
-Route::domain(config('app.central_domain', 'localhost'))->group(function () {
+Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
 
     // ──────────────────────────────────────────────────────────────
     // CENTRAL MARKETING & PUBLIC LANDING
