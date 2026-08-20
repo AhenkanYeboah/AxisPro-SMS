@@ -10,37 +10,36 @@
 </head>
 <body>
 
-{{--
-    This file replaces the sidebar/topbar markup that was copy-pasted at the top
-    of every $page == '...' branch in the original file. @yield()/@section()
-    is Blade's version of "fill in this slot" - each page only writes the
-    parts that differ (nav links, page title, main content).
-
-    Multi-tenant note: the school shown here is whichever tenant ResolveTenant
-    resolved from the subdomain ($currentSchool, shared with every view). This
-    layout no longer hardcodes any one school's name/crest - each tenant sees
-    their own branding, falling back to a generic logo mark if they haven't
-    uploaded one yet.
---}}
-
 @php
-    // Resolve active school context if $currentSchool is unpopulated
-    $activeSchool = $currentSchool ?? (session()->has('active_school_id') ? \App\Models\School::find(session('active_school_id')) : null);
-    
-    // Check if the current context matches Royal Countryside Academy or any active tenant
+    // 1. Resolve active school via shared variable, session, or authenticated user models
+    $activeSchool = $currentSchool ?? null;
+
+    if (!$activeSchool && session()->has('active_school_id')) {
+        $activeSchool = \App\Models\School::find(session('active_school_id'));
+    }
+
+    if (!$activeSchool) {
+        foreach (['admin', 'teacher', 'student', 'web'] as $guard) {
+            if (auth($guard)->check() && !empty(auth($guard)->user()->school_id)) {
+                $activeSchool = \App\Models\School::find(auth($guard)->user()->school_id);
+                if ($activeSchool) break;
+            }
+        }
+    }
+
+    // 2. Generate destination URL based on resolved context
     $schoolHomeUrl = $activeSchool ? url('/school-home') : route('platform.home');
 @endphp
 
 <div class="app-shell">
     <aside class="sidebar">
         <div class="sidebar-brand">
-            @if($currentSchool ?? false)
-                @if($currentSchool->logo_path)
-                    <img src="{{ Storage::disk('public')->url($currentSchool->logo_path) }}" alt="{{ $currentSchool->name }} logo" onerror="this.style.display='none'">
+            @if($activeSchool)
+                @if($activeSchool->logo_path)
+                    <img src="{{ Storage::disk('public')->url($activeSchool->logo_path) }}" alt="{{ $activeSchool->name }} logo" onerror="this.style.display='none'">
                 @endif
-                <div class="brand-name">{{ $currentSchool->name }}</div>
+                <div class="brand-name">{{ $activeSchool->name }}</div>
             @else
-                {{-- Platform-admin panel: no tenant in context (exempted from ResolveTenant) --}}
                 <img src="{{ asset('images/axispro-logo.webp') }}" alt="AxisPro">
                 <div class="brand-name">AxisPro</div>
             @endif
