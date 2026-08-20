@@ -3,48 +3,55 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
 use App\Models\School;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class ResolveTenant
 {
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next): Response
     {
-        $host = parse_url($request->getHttpHost(), PHP_URL_HOST) ?? $request->getHost();
-
-        // 1. Central domains that MUST bypass tenant resolution
-        $centralDomains = [
-            'localhost',
-            '127.0.0.1',
-            'axispro-sms.onrender.com', // Your primary Render domain
-            parse_url(config('app.url'), PHP_URL_HOST),
-        ];
-
-        // 2. Bypass tenant resolution for central host or explicitly un-scoped routes
-        if (in_array($host, array_filter($centralDomains), true) || $request->is('platform*')) {
-            app()->forgetInstance('currentTenant');
+        // 1. Skip tenant resolution completely for central platform routes
+        if ($this->isPlatformRoute($request)) {
             return $next($request);
         }
 
-        // 3. Extract potential subdomain/slug (e.g. "school1" from "school1.axispro-sms.onrender.com")
-        $slug = explode('.', $host)[0];
+        // 2. Resolve school for tenant routes
+        $school = null;
 
-        // 4. Query using actual schema column names: 'subdomain' or 'slug'
-        $tenant = School::where('subdomain', $host)
-            ->orWhere('subdomain', $slug)
-            ->orWhere('slug', $slug)
-            ->first();
-
-        if (!$tenant) {
-            abort(404, 'School or Tenant not found.');
+        if (session()->has('active_school_id')) {
+            $school = School::find(session('active_school_id'));
         }
 
-        // Bind resolved tenant to application context
-        app()->instance('currentTenant', $tenant);
+        // Deliberately NO "School::first()" fallback here. Defaulting to
+        // "whichever school happens to be row 1" silently makes every
+        // unresolved tenant request look like that school - which is how
+        // the platform root ended up rendering Royal Countryside Academy.
+        // If nothing resolves, $school stays null and downstream code
+        // (HomeController::index, BelongsToSchool, etc.) treats that as
+        // "no tenant" rather than guessing.
+
+        if ($school) {
+            // Share current school globally across views
+            view()->share('currentSchool', $school);
+            app()->instance('currentSchool', $school);
+        }
 
         return $next($request);
+    }
+
+    /**
+     * Determine if the current request belongs to central platform routes.
+     */
+    protected function isPlatformRoute(Request $request): bool
+    {
+        // Add any public/platform paths that should NEVER trigger school scoping
+        return $request->is('/')
+            || $request->is('platform*')
+            || $request->is('signup*')
+            || $request->is('paystack*');
     }
 }
