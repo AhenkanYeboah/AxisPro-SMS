@@ -23,6 +23,14 @@
     uploaded one yet.
 --}}
 
+@php
+    // Resolve active school context if $currentSchool is unpopulated
+    $activeSchool = $currentSchool ?? (session()->has('active_school_id') ? \App\Models\School::find(session('active_school_id')) : null);
+    
+    // Check if the current context matches Royal Countryside Academy or any active tenant
+    $schoolHomeUrl = $activeSchool ? url('/school-home') : route('platform.home');
+@endphp
+
 <div class="app-shell">
     <aside class="sidebar">
         <div class="sidebar-brand">
@@ -61,6 +69,11 @@
                 </div>
             </div>
             <div class="auth-links">
+                {{-- School Home Link --}}
+                <a href="{{ $schoolHomeUrl }}" class="btn-topbar" style="margin-right: 12px; text-decoration: none; font-weight: 500;">
+                    🏠 School Home
+                </a>
+                
                 @yield('topbar-right')
             </div>
         </div>
