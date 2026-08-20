@@ -2,36 +2,54 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\School;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 
 class HomeController extends Controller
 {
     /**
-     * Display the Central Marketing & Platform Landing Page.
-     * Served at the root URL (/) for central domain requests.
+     * Central Platform Marketing Page (Root URL: /)
+     * Pure platform landing page - no school data passed or required.
      */
-    public function centralHome(Request $request): View
+    public function centralHome()
     {
-        // Safety check: if a school/tenant context is active, render tenant view or redirect
-        if (app()->bound('currentTenant')) {
-            $tenant = app('currentTenant');
-            return view('school.home', compact('tenant'));
-        }
-
-        return view('central.landing', [
-            'appName' => config('app.name'),
-        ]);
+        return view('platform.home');
     }
 
     /**
-     * Display the Tenant / School Homepage.
-     * Served for tenant subdomains or specific school landing routes.
+     * Tenant School Homepage (/school-home)
+     * Renders tenant view with school context.
      */
-    public function index(Request $request): View
+    public function index(Request $request)
     {
-        $tenant = app()->bound('currentTenant') ? app('currentTenant') : null;
+        $school = view()->shared('currentSchool');
 
-        return view('school.home', compact('tenant'));
+        if (!$school && session()->has('active_school_id')) {
+            $school = School::find(session('active_school_id'));
+        }
+
+        if (!$school) {
+            // No tenant resolved - do NOT fall back to School::first().
+            // Silently defaulting to "the first school in the table" means
+            // every unmatched/ambiguous request quietly renders RCA's data,
+            // which is exactly how the platform root page got replaced by
+            // RCA's homepage. Send unresolved requests to the central
+            // marketing page instead.
+            return redirect()->route('home');
+        }
+
+        // Royal Countryside Academy keeps its own bespoke branded template.
+        // Every other tenant gets the shared generic per-school template.
+        $identifier = $school->subdomain ?? $school->slug ?? '';
+
+        if ($identifier === 'royalcountrysideacademy' && view()->exists('home')) {
+            return view('home', compact('school'));
+        }
+
+        if (view()->exists('home-generic')) {
+            return view('home-generic', compact('school'));
+        }
+
+        return redirect()->route('home');
     }
 }
