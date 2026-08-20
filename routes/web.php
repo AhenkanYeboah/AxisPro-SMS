@@ -39,6 +39,18 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
+// Place this at the VERY TOP of routes/web.php (outside any domain or middleware group)
+Route::get('/clear-everything-emergency', function () {
+    try {
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+        \Illuminate\Support\Facades\Artisan::call('route:clear');
+        \Illuminate\Support\Facades\Artisan::call('view:clear');
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        return 'All Laravel caches successfully cleared!';
+    } catch (\Throwable $e) {
+        return 'Error clearing cache: ' . $e->getMessage();
+    }
+});
 /*
 |--------------------------------------------------------------------------
 | CENTRAL / PLATFORM ROUTES (Unscoped / Platform Domain)
