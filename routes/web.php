@@ -35,6 +35,7 @@ use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\VirtualClassController;
 use App\Http\Middleware\ResolveTenant;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -47,6 +48,22 @@ use Illuminate\Support\Facades\Storage;
 |
 */
 Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
+
+    // ──────────────────────────────────────────────────────────────
+    // EMERGENCY TEMPORARY RECOVERY ROUTE
+    // Access this in browser to purge corrupted post-crash cache
+    // ──────────────────────────────────────────────────────────────
+    Route::get('/clear-everything-emergency', function () {
+        try {
+            Artisan::call('config:clear');
+            Artisan::call('route:clear');
+            Artisan::call('view:clear');
+            Artisan::call('cache:clear');
+            return 'All Laravel caches successfully cleared! Try loading your app now.';
+        } catch (\Exception $e) {
+            return 'Error clearing cache: ' . $e->getMessage();
+        }
+    });
 
     // ──────────────────────────────────────────────────────────────
     // CENTRAL MARKETING & PUBLIC LANDING
