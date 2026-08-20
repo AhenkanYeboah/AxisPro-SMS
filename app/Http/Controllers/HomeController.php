@@ -9,6 +9,7 @@ class HomeController extends Controller
 {
     /**
      * Central Platform Marketing Page (Root URL: /)
+     * Pure platform landing page - no school data passed or required.
      */
     public function centralHome()
     {
@@ -17,6 +18,7 @@ class HomeController extends Controller
 
     /**
      * Tenant School Homepage (/school-home)
+     * Renders tenant view with school context.
      */
     public function index(Request $request)
     {
@@ -31,6 +33,8 @@ class HomeController extends Controller
             return view('platform.home');
         }
 
+        // Royal Countryside Academy keeps its own bespoke branded template.
+        // Every other tenant gets the shared generic per-school template.
         $identifier = $school->subdomain ?? $school->slug ?? '';
 
         if ($identifier === 'royalcountrysideacademy' && view()->exists('home')) {
