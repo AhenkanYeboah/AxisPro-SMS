@@ -40,46 +40,36 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 // ──────────────────────────────────────────────────────────────
-// EMERGENCY DIAGNOSTIC & ROUTE SIMULATION ROUTE
-// Bypasses ResolveTenant & runs a live internal request test
+// EMERGENCY DIAGNOSTIC, MIGRATIONS & TENANT TEST
+// Bypasses ResolveTenant & inspects tenant/session database setup
 // ──────────────────────────────────────────────────────────────
 Route::get('/clear-everything-emergency', function () {
-    $output = "=== 1. CACHE & DB STATUS ===\n";
+    $output = "=== 1. AUTOMATED MIGRATIONS CHECK ===\n";
     try {
-        Artisan::call('config:clear');
-        Artisan::call('route:clear');
-        Artisan::call('view:clear');
-        Artisan::call('cache:clear');
-        $output .= "Caches: Cleared successfully\n";
+        Artisan::call('migrate', ['--force' => true]);
+        $output .= "Migration Results:\n" . (Artisan::output() ?: "All migrations up to date!\n");
     } catch (\Throwable $e) {
-        $output .= "Cache Error: " . $e->getMessage() . "\n";
+        $output .= "Migration Error: " . $e->getMessage() . "\n";
     }
 
+    $output .= "\n=== 2. SESSION & DB TABLES CHECK ===\n";
     try {
-        \Illuminate\Support\Facades\DB::connection()->getPdo();
-        $output .= "Database: Connected (" . config('database.default') . ")\n\n";
+        $tables = \Illuminate\Support\Facades\Schema::getTableListing();
+        $output .= "Found " . count($tables) . " tables in pgsql database:\n";
+        $output .= implode(', ', array_slice($tables, 0, 20)) . "\n";
     } catch (\Throwable $e) {
-        $output .= "Database Error: " . $e->getMessage() . "\n\n";
+        $output .= "Table Check Error: " . $e->getMessage() . "\n";
     }
 
-    $output .= "=== 2. SIMULATING /admin/dashboard REQUEST ===\n";
+    $output .= "\n=== 3. TESTING /admin/login ROUTE ===\n";
     try {
-        $request = \Illuminate\Http\Request::create('/admin/dashboard', 'GET');
+        $request = \Illuminate\Http\Request::create('/admin/login', 'GET');
         $response = app()->handle($request);
-        $status = $response->getStatusCode();
-        $output .= "Status Code: " . $status . "\n";
-        
-        if ($status >= 400) {
-            $content = $response->getContent();
-            // Output full exception text if available
-            $output .= "Response Excerpt:\n" . substr(strip_tags($content), 0, 1500) . "\n";
-        }
+        $output .= "HTTP Status Code for /admin/login: " . $response->getStatusCode() . "\n";
     } catch (\Throwable $e) {
-        $output .= "CRASH EXCEPTION DETECTED:\n";
-        $output .= "Class: " . get_class($e) . "\n";
+        $output .= "CRASH ON /admin/login:\n";
         $output .= "Message: " . $e->getMessage() . "\n";
-        $output .= "File: " . $e->getFile() . " on line " . $e->getLine() . "\n\n";
-        $output .= "Stack Trace Top:\n" . implode("\n", array_slice(explode("\n", $e->getTraceAsString()), 0, 15)) . "\n";
+        $output .= "File: " . $e->getFile() . " on line " . $e->getLine() . "\n";
     }
 
     return response($output, 200)->header('Content-Type', 'text/plain');
