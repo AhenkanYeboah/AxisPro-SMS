@@ -50,8 +50,10 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
 
     // ──────────────────────────────────────────────────────────────
     // CENTRAL MARKETING & PUBLIC LANDING
+    // Added platform.home alias to fix RouteNotFoundException
     // ──────────────────────────────────────────────────────────────
     Route::get('/', [HomeController::class, 'centralHome'])->name('home');
+    Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
 
     // ──────────────────────────────────────────────────────────────
     // UPLOADED FILE FALLBACK
