@@ -37,15 +37,19 @@ class Student extends Authenticatable
         ];
     }
 
-    // Students log in with their student_id, not email - Laravel's auth guard needs
-    // to know this. See config/auth.php "username" for the student guard provider.
+    /**
+     * Override standard auth identifier name to support log in via student_id.
+     */
+    public function getAuthIdentifierName(): string
+    {
+        return 'student_id';
+    }
 
     public function fullName(): string
     {
         return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
     }
 
-    // Classes that require a results file upload at registration time.
     public static function classesRequiringResults(): array
     {
         return ['Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6', 'JHS 1', 'JHS 2'];
@@ -86,13 +90,6 @@ class Student extends Authenticatable
         return $this->belongsTo(ClassLevel::class);
     }
 
-    /**
-     * Fee/notice delivery should reach a parent/guardian, not a young
-     * child. parent_email/parent_phone are preferred when set; falls back
-     * to the student's own email/phone only if no parent contact is on
-     * file (e.g. an older JHS student who genuinely has their own, or a
-     * record that predates the parent-contact fields being added).
-     */
     public function contactEmail(): ?string
     {
         return $this->parent_email ?: $this->email ?: null;
