@@ -40,37 +40,46 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 // ──────────────────────────────────────────────────────────────
-// EMERGENCY DIAGNOSTIC & CACHE CLEAR ROUTE (Line 41)
-// Bypasses ResolveTenant & outputs direct error logs to browser
+// EMERGENCY DIAGNOSTIC & ROUTE SIMULATION ROUTE
+// Bypasses ResolveTenant & runs a live internal request test
 // ──────────────────────────────────────────────────────────────
 Route::get('/clear-everything-emergency', function () {
-    $output = "=== 1. CLEARING CACHES ===\n";
+    $output = "=== 1. CACHE & DB STATUS ===\n";
     try {
         Artisan::call('config:clear');
         Artisan::call('route:clear');
         Artisan::call('view:clear');
         Artisan::call('cache:clear');
-        $output .= "Caches cleared successfully!\n\n";
+        $output .= "Caches: Cleared successfully\n";
     } catch (\Throwable $e) {
-        $output .= "Cache Clear Error: " . $e->getMessage() . "\n\n";
+        $output .= "Cache Error: " . $e->getMessage() . "\n";
     }
 
-    $output .= "=== 2. DATABASE CONNECTION TEST ===\n";
     try {
         \Illuminate\Support\Facades\DB::connection()->getPdo();
-        $output .= "Database Connection: SUCCESSFUL (" . config('database.default') . ")\n\n";
+        $output .= "Database: Connected (" . config('database.default') . ")\n\n";
     } catch (\Throwable $e) {
-        $output .= "Database Connection FAILED:\n" . $e->getMessage() . "\n\n";
+        $output .= "Database Error: " . $e->getMessage() . "\n\n";
     }
 
-    $output .= "=== 3. RECENT LARAVEL LOG ERRORS ===\n";
-    $logPath = storage_path('logs/laravel.log');
-    if (file_exists($logPath)) {
-        $logContent = file_get_contents($logPath);
-        $lines = array_slice(explode("\n", $logContent), -100);
-        $output .= implode("\n", $lines);
-    } else {
-        $output .= "No log file found at: " . $logPath;
+    $output .= "=== 2. SIMULATING /admin/dashboard REQUEST ===\n";
+    try {
+        $request = \Illuminate\Http\Request::create('/admin/dashboard', 'GET');
+        $response = app()->handle($request);
+        $status = $response->getStatusCode();
+        $output .= "Status Code: " . $status . "\n";
+        
+        if ($status >= 400) {
+            $content = $response->getContent();
+            // Output full exception text if available
+            $output .= "Response Excerpt:\n" . substr(strip_tags($content), 0, 1500) . "\n";
+        }
+    } catch (\Throwable $e) {
+        $output .= "CRASH EXCEPTION DETECTED:\n";
+        $output .= "Class: " . get_class($e) . "\n";
+        $output .= "Message: " . $e->getMessage() . "\n";
+        $output .= "File: " . $e->getFile() . " on line " . $e->getLine() . "\n\n";
+        $output .= "Stack Trace Top:\n" . implode("\n", array_slice(explode("\n", $e->getTraceAsString()), 0, 15)) . "\n";
     }
 
     return response($output, 200)->header('Content-Type', 'text/plain');
