@@ -39,17 +39,41 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
-// Place this at the VERY TOP of routes/web.php (outside any domain or middleware group)
+// ──────────────────────────────────────────────────────────────
+// EMERGENCY DIAGNOSTIC & CACHE CLEAR ROUTE (Line 41)
+// Bypasses ResolveTenant & outputs direct error logs to browser
+// ──────────────────────────────────────────────────────────────
 Route::get('/clear-everything-emergency', function () {
+    $output = "=== 1. CLEARING CACHES ===\n";
     try {
-        \Illuminate\Support\Facades\Artisan::call('config:clear');
-        \Illuminate\Support\Facades\Artisan::call('route:clear');
-        \Illuminate\Support\Facades\Artisan::call('view:clear');
-        \Illuminate\Support\Facades\Artisan::call('cache:clear');
-        return 'All Laravel caches successfully cleared!';
+        Artisan::call('config:clear');
+        Artisan::call('route:clear');
+        Artisan::call('view:clear');
+        Artisan::call('cache:clear');
+        $output .= "Caches cleared successfully!\n\n";
     } catch (\Throwable $e) {
-        return 'Error clearing cache: ' . $e->getMessage();
+        $output .= "Cache Clear Error: " . $e->getMessage() . "\n\n";
     }
+
+    $output .= "=== 2. DATABASE CONNECTION TEST ===\n";
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $output .= "Database Connection: SUCCESSFUL (" . config('database.default') . ")\n\n";
+    } catch (\Throwable $e) {
+        $output .= "Database Connection FAILED:\n" . $e->getMessage() . "\n\n";
+    }
+
+    $output .= "=== 3. RECENT LARAVEL LOG ERRORS ===\n";
+    $logPath = storage_path('logs/laravel.log');
+    if (file_exists($logPath)) {
+        $logContent = file_get_contents($logPath);
+        $lines = array_slice(explode("\n", $logContent), -100);
+        $output .= implode("\n", $lines);
+    } else {
+        $output .= "No log file found at: " . $logPath;
+    }
+
+    return response($output, 200)->header('Content-Type', 'text/plain');
 });
 /*
 |--------------------------------------------------------------------------
