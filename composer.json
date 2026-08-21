@@ -4,8 +4,10 @@
     "description": "Royal Countryside Academy — Student Management System (Laravel rebuild)",
     "require": {
         "php": "^8.2",
+        "guzzlehttp/guzzle": "^7.8",
         "laravel/framework": "^11.0",
-        "laravel/tinker": "^2.9"
+        "laravel/tinker": "^2.9",
+        "unicodeveloper/laravel-paystack": "^1.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
