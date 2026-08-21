@@ -34,7 +34,6 @@ use App\Http\Controllers\TeacherAuthController;
 use App\Http\Controllers\TeacherDashboardController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\VirtualClassController;
-use App\Http\Middleware\ResolveTenant;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -184,7 +183,13 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
 | ResolveTenant middleware to set active school context.
 |
 */
-Route::middleware(['web', ResolveTenant::class])->group(function () {
+// NOTE: no middleware needed here — 'web' and ResolveTenant are already
+// applied to every route in this file globally, via bootstrap/app.php's
+// $middleware->web(append: [ResolveTenant::class]). Wrapping them again
+// here ran the whole session/cookie/CSRF pipeline twice on every request
+// to these routes, which is what was causing the 500s on admin/teacher/
+// student login and every page after it.
+Route::group([], function () {
 
     // Scope model bindings across all tenant routes automatically
     Route::scopeBindings()->group(function () {
@@ -351,3 +356,4 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
     });
 
 });
+          
