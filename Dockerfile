@@ -50,10 +50,6 @@ RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Dump optimized autoloader
-RUN composer dump-autoload --optimize --no-dev --no-scripts
-
 EXPOSE 80
 
-# Build caches, ensure public storage symlink exists, run migrations/seeds, and start Apache
 CMD sh -c "php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan storage:link --force && php artisan migrate --force && if [ \"$RUN_SEED\" = \"true\" ]; then php artisan db:seed --force; fi && apache2-foreground"
