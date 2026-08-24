@@ -39,11 +39,22 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
 // ──────────────────────────────────────────────────────────────
-// EMERGENCY DIAGNOSTIC, MIGRATIONS & TENANT TEST
-// Bypasses ResolveTenant & inspects tenant/session database setup
+// EMERGENCY DIAGNOSTIC, CACHE CLEAR & MIGRATIONS CHECK
+// Bypasses domain scoping to flush stale Render build caches
 // ──────────────────────────────────────────────────────────────
 Route::get('/clear-everything-emergency', function () {
-    $output = "=== 1. AUTOMATED MIGRATIONS CHECK ===\n";
+    $output = "=== 1. FLUSHING LARAVEL BUILD CACHES ===\n";
+    try {
+        Artisan::call('config:clear');
+        Artisan::call('route:clear');
+        Artisan::call('view:clear');
+        Artisan::call('cache:clear');
+        $output .= "All config, route, view, and application caches successfully cleared!\n";
+    } catch (\Throwable $e) {
+        $output .= "Cache Clear Error: " . $e->getMessage() . "\n";
+    }
+
+    $output .= "\n=== 2. AUTOMATED MIGRATIONS CHECK ===\n";
     try {
         Artisan::call('migrate', ['--force' => true]);
         $output .= "Migration Results:\n" . (Artisan::output() ?: "All migrations up to date!\n");
@@ -51,7 +62,7 @@ Route::get('/clear-everything-emergency', function () {
         $output .= "Migration Error: " . $e->getMessage() . "\n";
     }
 
-    $output .= "\n=== 2. SESSION & DB TABLES CHECK ===\n";
+    $output .= "\n=== 3. SESSION & DB TABLES CHECK ===\n";
     try {
         $tables = \Illuminate\Support\Facades\Schema::getTableListing();
         $output .= "Found " . count($tables) . " tables in pgsql database:\n";
@@ -60,7 +71,7 @@ Route::get('/clear-everything-emergency', function () {
         $output .= "Table Check Error: " . $e->getMessage() . "\n";
     }
 
-    $output .= "\n=== 3. TESTING /admin/login ROUTE ===\n";
+    $output .= "\n=== 4. TESTING /admin/login ROUTE ===\n";
     try {
         $request = \Illuminate\Http\Request::create('/admin/login', 'GET');
         $response = app()->handle($request);
@@ -73,42 +84,17 @@ Route::get('/clear-everything-emergency', function () {
 
     return response($output, 200)->header('Content-Type', 'text/plain');
 });
+
 /*
 |--------------------------------------------------------------------------
 | CENTRAL / PLATFORM ROUTES (Unscoped / Platform Domain)
 |--------------------------------------------------------------------------
-| These routes serve the main marketing platform, SaaS onboarding,
-| platform management, and system-wide webhooks/assets.
-|
 */
 Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
 
-    // ──────────────────────────────────────────────────────────────
-    // EMERGENCY TEMPORARY RECOVERY ROUTE
-    // Access this in browser to purge corrupted post-crash cache
-    // ──────────────────────────────────────────────────────────────
-    Route::get('/clear-everything-emergency', function () {
-        try {
-            Artisan::call('config:clear');
-            Artisan::call('route:clear');
-            Artisan::call('view:clear');
-            Artisan::call('cache:clear');
-            return 'All Laravel caches successfully cleared! Try loading your app now.';
-        } catch (\Exception $e) {
-            return 'Error clearing cache: ' . $e->getMessage();
-        }
-    });
-
-    // ──────────────────────────────────────────────────────────────
-    // CENTRAL MARKETING & PUBLIC LANDING
-    // Added platform.home alias to fix RouteNotFoundException
-    // ──────────────────────────────────────────────────────────────
     Route::get('/', [HomeController::class, 'centralHome'])->name('home');
     Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
 
-    // ──────────────────────────────────────────────────────────────
-    // UPLOADED FILE FALLBACK
-    // ──────────────────────────────────────────────────────────────
     Route::get('/storage/{path}', function (string $path) {
         if (!Storage::disk('public')->exists($path)) {
             abort(404);
@@ -117,9 +103,6 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
         return Storage::disk('public')->response($path);
     })->where('path', '.*')->name('storage.fallback');
 
-    // ──────────────────────────────────────────────────────────────
-    // SCHOOL SIGNUP (SaaS Onboarding)
-    // ──────────────────────────────────────────────────────────────
     Route::get('/signup', [SchoolSignupController::class, 'create'])->name('school.signup');
     Route::post('/signup', [SchoolSignupController::class, 'store'])->name('school.signup.store');
     
@@ -127,15 +110,8 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
         Route::get('/signup/{school}/success', [SchoolSignupController::class, 'success'])->name('school.signup.success');
     });
 
-    // ──────────────────────────────────────────────────────────────
-    // SYSTEM WEBHOOKS
-    // ──────────────────────────────────────────────────────────────
     Route::post('/paystack/webhook', [PaystackWebhookController::class, 'handle'])->name('paystack.webhook');
 
-    // ──────────────────────────────────────────────────────────────
-    // PLATFORM ADMIN ROUTING
-    // Central owner control panel isolated from individual school scopes.
-    // ──────────────────────────────────────────────────────────────
     Route::get('/platform/login', [PlatformAuthController::class, 'showLogin'])->name('platform.login');
     Route::post('/platform/login', [PlatformAuthController::class, 'login'])
         ->middleware('throttle:6,1')
@@ -179,31 +155,15 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
 |--------------------------------------------------------------------------
 | TENANT / SCHOOL ROUTES (Scoped by ResolveTenant)
 |--------------------------------------------------------------------------
-| These routes handle school subdomains/domains and run through the
-| ResolveTenant middleware to set active school context.
-|
 */
-// NOTE: no middleware needed here — 'web' and ResolveTenant are already
-// applied to every route in this file globally, via bootstrap/app.php's
-// $middleware->web(append: [ResolveTenant::class]). Wrapping them again
-// here ran the whole session/cookie/CSRF pipeline twice on every request
-// to these routes, which is what was causing the 500s on admin/teacher/
-// student login and every page after it.
 Route::group([], function () {
 
-    // Scope model bindings across all tenant routes automatically
     Route::scopeBindings()->group(function () {
 
-        // ──────────────────────────────────────────────────────────────
-        // TENANT SCHOOL HOMEPAGE & PUBLIC PAGES
-        // ──────────────────────────────────────────────────────────────
         Route::get('/', [HomeController::class, 'index'])->name('school.home');
         Route::get('/school-home', [HomeController::class, 'index']);
         Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
 
-        // ──────────────────────────────────────────────────────────────
-        // STUDENT: Registration, Auth, and Dashboard
-        // ──────────────────────────────────────────────────────────────
         Route::get('/enroll', [StudentAuthController::class, 'showForm'])->name('student.form');
         Route::post('/enroll', [StudentAuthController::class, 'register'])->name('student.register');
 
@@ -234,9 +194,6 @@ Route::group([], function () {
             });
         });
 
-        // ──────────────────────────────────────────────────────────────
-        // TEACHER: Authentication, Dashboard, and AI Assistant
-        // ──────────────────────────────────────────────────────────────
         Route::get('/teacher/login', [TeacherAuthController::class, 'showLogin'])->name('teacher.login');
         Route::post('/teacher/login', [TeacherAuthController::class, 'login'])
             ->middleware('throttle:6,1')
@@ -290,9 +247,6 @@ Route::group([], function () {
             Route::post('/teacher/virtual-classes/{virtualClass}/cancel', [VirtualClassController::class, 'cancel'])->name('teacher.virtual-classes.cancel');
         });
 
-        // ──────────────────────────────────────────────────────────────
-        // SCHOOL ADMIN: Portal Management
-        // ──────────────────────────────────────────────────────────────
         Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
         Route::post('/admin/login', [AdminAuthController::class, 'login'])
             ->middleware('throttle:6,1')
@@ -356,4 +310,3 @@ Route::group([], function () {
     });
 
 });
-          
