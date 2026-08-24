@@ -39,17 +39,16 @@ WORKDIR /var/www/html
 # Copy application code into container
 COPY --chown=www-data:www-data . /var/www/html
 
-# Create storage/bootstrap cache directories AND fix permissions BEFORE composer install
+# 1. CREATE DIRECTORIES AND SET PERMISSIONS FIRST
 RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
     /var/www/html/storage/logs \
     /var/www/html/bootstrap/cache \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Install Composer dependencies (package discovery runs cleanly now)
+# 2. RUN COMPOSER INSTALL AFTER DIRECTORIES ARE READY
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
 EXPOSE 80
 
-# Execute runtime caching, storage link, migrations, and start Apache
 CMD sh -c "php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan storage:link --force && php artisan migrate --force && if [ \"$RUN_SEED\" = \"true\" ]; then php artisan db:seed --force; fi && apache2-foreground"
