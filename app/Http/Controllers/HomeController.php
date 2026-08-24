@@ -10,12 +10,47 @@ use Throwable;
 class HomeController extends Controller
 {
     /**
+     * Admin Dashboard Route (/admin/dashboard)
+     */
+    public function adminDashboard()
+    {
+        // 1. Resolve school from container, session, or authenticated admin
+        $school = app()->bound('currentSchool') ? app('currentSchool') : null;
+
+        if (!$school && session()->has('active_school_id')) {
+            $school = School::find(session('active_school_id'));
+        }
+
+        if (!$school && auth('admin')->check()) {
+            $school = auth('admin')->user()->school;
+        }
+
+        // 2. Fallback check to prevent 500 crashes
+        if (!$school) {
+            return redirect()->route('platform.login')->with('error', 'No active school context found.');
+        }
+
+        // 3. Render dashboard view with fallback view checks
+        if (view()->exists('admin.dashboard')) {
+            return view('admin.dashboard', compact('school'));
+        }
+
+        if (view()->exists('dashboard')) {
+            return view('dashboard', compact('school'));
+        }
+
+        return response()->json([
+            'status' => 'Admin Dashboard Reached',
+            'school' => $school->name ?? 'Unknown School',
+            'admin' => auth('admin')->user()->email ?? 'Logged In',
+        ]);
+    }
+
+    /**
      * Central Platform Marketing Page (Root URL: /)
-     * Pure platform landing page - bypasses view crashes for diagnostics.
      */
     public function centralHome()
     {
-        // --- DIAGNOSTIC BYPASS START ---
         if (request()->has('bypass') || !view()->exists('platform.home')) {
             return response()->json([
                 'status' => 'centralHome reached',
@@ -24,14 +59,12 @@ class HomeController extends Controller
                 'app_debug' => config('app.debug'),
             ]);
         }
-        // --- DIAGNOSTIC BYPASS END ---
 
         return view('platform.home');
     }
 
     /**
      * Tenant School Homepage (/school-home)
-     * Safely checks school resolution and view existence without throwing a 500 error.
      */
     public function index(Request $request)
     {
@@ -48,7 +81,6 @@ class HomeController extends Controller
             ]
         ];
 
-        // 1. Check DB Connection safely
         try {
             DB::connection()->getPdo();
             $diagnostics['db_connection'] = true;
@@ -56,12 +88,10 @@ class HomeController extends Controller
             $diagnostics['db_error'] = $e->getMessage();
         }
 
-        // --- DIRECT BYPASS TRIGGER (?bypass=1) ---
         if ($request->has('bypass')) {
             return response()->json($diagnostics);
         }
 
-        // 2. Safe Tenant Resolution
         $school = view()->shared('currentSchool');
         if ($school) {
             $diagnostics['shared_school'] = true;
@@ -75,6 +105,10 @@ class HomeController extends Controller
             }
         }
 
+        if (!$school && auth('admin')->check()) {
+            $school = auth('admin')->user()->school;
+        }
+
         if (!$school) {
             if ($diagnostics['views']['platform.home']) {
                 return view('platform.home');
@@ -85,7 +119,6 @@ class HomeController extends Controller
             ], 500);
         }
 
-        // 3. Safe View Rendering
         $identifier = $school->subdomain ?? $school->slug ?? '';
 
         if ($identifier === 'royalcountrysideacademy' && $diagnostics['views']['home']) {
@@ -100,7 +133,6 @@ class HomeController extends Controller
             return view('platform.home');
         }
 
-        // If all expected view templates are missing from disk
         return response()->json([
             'error' => 'No valid Blade views found for rendering.',
             'diagnostics' => $diagnostics
