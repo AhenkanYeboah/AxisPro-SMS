@@ -4,47 +4,84 @@ namespace App\Http\Controllers;
 
 use App\Mail\ExamScheduledMail;
 use App\Models\Exam;
+use App\Models\School;
+use App\Models\SchoolActivity;
 use App\Models\Student;
 use App\Support\StudentStats;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
+use Throwable;
 
 class AdminStudentController extends Controller
 {
-    // Replaces the hand-built $where/$params/$types block. Eloquent's when()
-    // only adds a clause when the condition is true - same effect, far less code,
-    // and query parameters are bound automatically (no manual "types" string).
-    public function dashboard(Request $request): View
+    public function dashboard(Request $request): View|RedirectResponse
     {
-        $students = Student::query()
-            ->when($request->filled('name'), function ($query) use ($request) {
+        // 1. Resolve current school safely to prevent 500 crashes
+        $school = app()->bound('currentSchool') ? app('currentSchool') : null;
+
+        if (!$school && auth('admin')->check()) {
+            $school = auth('admin')->user()->school;
+        }
+
+        if (!$school && session()->has('active_school_id')) {
+            $school = School::find(session('active_school_id'));
+        }
+
+        // 2. Base Query scoped to current school if available
+        $query = Student::query();
+        if ($school) {
+            $query->where('school_id', $school->id);
+        }
+
+        $students = (clone $query)
+            ->when($request->filled('name'), function ($q) use ($request) {
                 $search = $request->input('name');
-                $query->where(function ($q) use ($search) {
-                    $q->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%");
+                $q->where(function ($inner) use ($search) {
+                    $inner->where('first_name', 'like', "%{$search}%")
+                          ->orWhere('last_name', 'like', "%{$search}%");
                 });
             })
-            ->when($request->filled('admission_status'), fn ($query) => $query->where('admission_status', $request->input('admission_status')))
-            ->when($request->filled('gender'), fn ($query) => $query->where('gender', $request->input('gender')))
-            ->when($request->filled('class'), fn ($query) => $query->where('class', $request->input('class')))
+            ->when($request->filled('admission_status'), fn ($q) => $q->where('admission_status', $request->input('admission_status')))
+            ->when($request->filled('gender'), fn ($q) => $q->where('gender', $request->input('gender')))
+            ->when($request->filled('class'), fn ($q) => $q->where('class', $request->input('class')))
             ->orderByDesc('created_at')
             ->get();
 
-        $recentApplicants = Student::orderByDesc('created_at')->limit(10)->get();
+        $recentApplicants = (clone $query)->orderByDesc('created_at')->limit(10)->get();
 
-        $classRoster = Student::where('status', 'active')
+        $classRoster = (clone $query)
+            ->where('status', 'active')
             ->orderBy('class')
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get()
             ->groupBy(fn ($student) => $student->class ?: 'Not Specified');
 
-        $stats = StudentStats::compute();
-        $allActivities = \App\Models\SchoolActivity::orderBy('activity_date')->get();
+        // 3. Wrap StudentStats in a try-catch to prevent dashboard crash on calculation errors
+        try {
+            $stats = StudentStats::compute();
+        } catch (Throwable $e) {
+            $stats = (object) [
+                'total' => $students->count(),
+                'active' => $students->where('status', 'active')->count(),
+                'pending' => $students->where('admission_status', 'pending')->count(),
+            ];
+        }
 
-        return view('admin.dashboard', compact('students', 'recentApplicants', 'classRoster', 'stats', 'allActivities'));
+        // 4. Safely query activities
+        try {
+            $activitiesQuery = SchoolActivity::query();
+            if ($school) {
+                $activitiesQuery->where('school_id', $school->id);
+            }
+            $allActivities = $activitiesQuery->orderBy('activity_date')->get();
+        } catch (Throwable $e) {
+            $allActivities = collect();
+        }
+
+        return view('admin.dashboard', compact('students', 'recentApplicants', 'classRoster', 'stats', 'allActivities', 'school'));
     }
 
     public function show(Student $student): View
@@ -55,9 +92,6 @@ class AdminStudentController extends Controller
         return view('admin.view_student', compact('student', 'exams', 'examSubmission'));
     }
 
-    // Replaces the admin_action switch statement (set_exam_date, mark_exam_completed,
-    // verify_student, decline_student) - one method per action keeps things
-    // readable and each gets its own named route.
     public function setExamDate(Request $request, Student $student): RedirectResponse
     {
         $data = $request->validate([
@@ -70,8 +104,6 @@ class AdminStudentController extends Controller
             'exam_id' => $data['exam_id'] ?? null,
         ]);
 
-        // Only notify if an actual exam was attached - a date with no exam
-        // yet isn't something the applicant can act on.
         if (!empty($data['exam_id']) && $student->email) {
             Mail::to($student->email)->send(new ExamScheduledMail($student->fresh()));
         }
