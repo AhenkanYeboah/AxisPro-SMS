@@ -36,18 +36,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy all application code into container first
+# Copy application code into container
 COPY --chown=www-data:www-data . /var/www/html
 
-# Install Composer dependencies inside container
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-
-# Create storage/bootstrap cache directories with permissions
+# Create storage/bootstrap cache directories AND fix permissions BEFORE composer install
 RUN mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
     /var/www/html/storage/logs \
     /var/www/html/bootstrap/cache \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Install Composer dependencies (package discovery runs cleanly now)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
 EXPOSE 80
 
