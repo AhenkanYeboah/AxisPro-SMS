@@ -306,6 +306,51 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
             Route::get('/admin/notices', [AdminNoticeController::class, 'index'])->name('admin.notices.index');
             Route::post('/admin/notices', [AdminNoticeController::class, 'store'])->name('admin.notices.store');
             Route::get('/admin/notices/{notice}', [AdminNoticeController::class, 'show'])->name('admin.notices.show');
+
+            // DEBUG - delete after fixing
+Route::get('/debug-dash', function () {
+    try {
+        // Try to replicate what dashboard does
+        $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
+        if (!$admin) {
+            return "Not logged in as admin - login first at /admin/login then visit /debug-dash";
+        }
+        
+        echo "Admin: " . $admin->id . " - " . $admin->email . "<br>";
+        
+        // Check tables that dashboard likely uses
+        echo "Checking tables...<br>";
+        echo "admins: " . \DB::table('admins')->count() . "<br>";
+        echo "teachers: " . \DB::table('teachers')->count() . "<br>";
+        echo "students: " . \DB::table('students')->count() . "<br>";
+        
+        // Try attendance table - this is new July 2026 feature
+        try {
+            echo "attendance: " . \DB::table('attendance')->count() . "<br>";
+        } catch (\Throwable $e) {
+            echo "<b>attendance table ERROR: " . $e->getMessage() . "</b><br>";
+        }
+        
+        // Try schools table
+        try {
+            echo "schools: " . \DB::table('schools')->count() . "<br>";
+        } catch (\Throwable $e) {
+            echo "<b>schools table ERROR: " . $e->getMessage() . "</b><br>";
+        }
+        
+        echo "<hr>Now trying actual dashboard logic...<br>";
+        
+        // Now call the real dashboard controller method
+        $controller = new \App\Http\Controllers\Admin\DashboardController();
+        return $controller->index(request());
+        
+    } catch (\Throwable $e) {
+        echo "<h1>REAL ERROR FOUND:</h1>";
+        echo "<b>Message:</b> " . $e->getMessage() . "<br>";
+        echo "<b>File:</b> " . $e->getFile() . ":" . $e->getLine() . "<br>";
+        echo "<pre>" . $e->getTraceAsString() . "</pre>";
+    }
+});
         });
 
     });
