@@ -41,96 +41,76 @@ use App\Http\Controllers\VirtualClassController;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| CENTRAL / PLATFORM ROUTES
-|--------------------------------------------------------------------------
-*/
-Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
-
-    Route::get('/', [HomeController::class, 'centralHome'])->name('home');
-    Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
-
-    // DEBUG - bypasses ResolveTenant - DELETE AFTER FIX
- Route::get('/debug-dash', function () {
+// SINGLE DEBUG ROUTE - TOP LEVEL, BYPASSES ResolveTenant
+Route::get('/debug-dash', function () {
     try {
         echo "Host: " . request()->getHost() . "<br>";
-        echo "CENTRAL_DOMAIN: " . config('app.central_domain') . "<br><br>";
+        echo "CENTRAL_DOMAIN: " . config('app.central_domain') . "<br>";
+        echo "APP_URL: " . config('app.url') . "<br><br>";
+        
         $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
         if (!$admin) {
-            // Try to see if session exists at all
-            echo "Not logged in as admin. Session: " . json_encode(session()->all()) . "<br>";
-            return "Please login at /admin/login first, then immediately visit /debug-dash";
+            echo "Session keys: " . implode(', ', array_keys(session()->all())) . "<br>";
+            return "Not logged in as admin. Login at /admin/login then visit /debug-dash immediately in same browser.";
         }
-        echo "Admin: {$admin->id} - {$admin->email} - school_id: " . ($admin->school_id ?? 'NULL') . "<br>";
-        $school = $admin->school_id ? \DB::table('schools')->where('id', $admin->school_id)->first() : null;
-        echo "School: " . ($school ? $school->name : 'NONE') . "<br><br>";
-        foreach (['schools','admins','teachers','students','attendance'] as $t) {
-            try { echo "$t: " . \DB::table($t)->count() . "<br>"; } 
-            catch (\Throwable $e) { echo "$t ERROR: {$e->getMessage()}<br>"; }
+        
+        echo "Admin ID: {$admin->id}<br>";
+        echo "Email: {$admin->email}<br>";
+        echo "School ID: " . ($admin->school_id ?? 'NULL - THIS IS BUG') . "<br><br>";
+        
+        echo "Tables:<br>";
+        foreach (['schools','admins','teachers','students','attendance','class_levels'] as $table) {
+            try {
+                echo "- $table: " . \DB::table($table)->count() . "<br>";
+            } catch (\Throwable $e) {
+                echo "- <b>$table ERROR: " . $e->getMessage() . "</b><br>";
+            }
         }
-        echo "<hr>";
+        
+        if ($admin->school_id) {
+            $school = \DB::table('schools')->where('id', $admin->school_id)->first();
+            echo "<br>School record: " . ($school ? $school->name : 'NOT FOUND') . "<br>";
+        } else {
+            echo "<br><b>Admin has no school_id. Listing schools:</b><br>";
+            foreach (\DB::table('schools')->limit(5)->get() as $s) {
+                echo "- id={$s->id} name={$s->name}<br>";
+            }
+        }
+        
+        echo "<hr>Calling dashboard controller...<br>";
         $controller = new \App\Http\Controllers\AdminStudentController();
         return $controller->dashboard(request());
+        
     } catch (\Throwable $e) {
-        echo "ERROR: {$e->getMessage()}<br>File: {$e->getFile()}:{$e->getLine()}<br><pre>{$e->getTraceAsString()}</pre>";
+        echo "<h1>REAL ERROR:</h1>";
+        echo "Message: " . $e->getMessage() . "<br>";
+        echo "File: " . $e->getFile() . ":" . $e->getLine() . "<br>";
+        echo "<pre>" . $e->getTraceAsString() . "</pre>";
     }
 })->middleware('web');
-            
-            if (!$admin->school_id) {
-                echo "<br><b style='color:red'>ADMIN HAS NULL school_id — THIS IS LIKELY THE BUG</b><br>";
-                echo "Schools in DB:<br>";
-                foreach (\DB::table('schools')->limit(5)->get() as $s) {
-                    echo "- {$s->id}: {$s->name} | domain: " . ($s->domain ?? 'no domain') . "<br>";
-                }
-            } else {
-                $school = \DB::table('schools')->where('id', $admin->school_id)->first();
-                echo "<br>School: " . ($school ? $school->name : 'NOT FOUND for id ' . $admin->school_id) . "<br>";
-            }
-            
-            echo "<hr>Trying dashboard controller directly...<br>";
-            $controller = new \App\Http\Controllers\AdminStudentController();
-            return $controller->dashboard(request());
-            
-        } catch (\Throwable $e) {
-            echo "<h1>REAL ERROR FOUND:</h1>";
-            echo "<b>Message:</b> " . $e->getMessage() . "<br>";
-            echo "<b>File:</b> " . $e->getFile() . ":" . $e->getLine() . "<br>";
-            echo "<pre>" . $e->getTraceAsString() . "</pre>";
-        }
-    });
 
-    Route::get('/storage/{path}', [StorageFallbackController::class, 'show'])
-        ->where('path', '.*')
-        ->name('storage.fallback');
-
+Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
+    Route::get('/', [HomeController::class, 'centralHome'])->name('home');
+    Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
+    Route::get('/storage/{path}', [StorageFallbackController::class, 'show'])->where('path', '.*')->name('storage.fallback');
     Route::get('/signup', [SchoolSignupController::class, 'create'])->name('school.signup');
     Route::post('/signup', [SchoolSignupController::class, 'store'])->name('school.signup.store');
-    
     Route::scopeBindings()->group(function () {
         Route::get('/signup/{school}/success', [SchoolSignupController::class, 'success'])->name('school.signup.success');
     });
-
     Route::post('/paystack/webhook', [PaystackWebhookController::class, 'handle'])->name('paystack.webhook');
-
     Route::get('/platform/login', [PlatformAuthController::class, 'showLogin'])->name('platform.login');
-    Route::post('/platform/login', [PlatformAuthController::class, 'login'])
-        ->middleware('throttle:6,1')
-        ->name('platform.login.submit');
+    Route::post('/platform/login', [PlatformAuthController::class, 'login'])->middleware('throttle:6,1')->name('platform.login.submit');
     Route::post('/platform/logout', [PlatformAuthController::class, 'logout'])->name('platform.logout');
-
     Route::middleware('auth:platform')->group(function () {
         Route::get('/platform/dashboard', [PlatformDashboardController::class, 'index'])->name('platform.dashboard');
-
         Route::scopeBindings()->group(function () {
             Route::get('/platform/schools/{school}', [PlatformDashboardController::class, 'show'])->name('platform.schools.show');
             Route::post('/platform/schools/{school}/suspend', [PlatformDashboardController::class, 'suspend'])->name('platform.schools.suspend');
             Route::post('/platform/schools/{school}/reactivate', [PlatformDashboardController::class, 'reactivate'])->name('platform.schools.reactivate');
             Route::post('/platform/schools/{school}/extend-trial', [PlatformDashboardController::class, 'extendTrial'])->name('platform.schools.extend-trial');
-
             Route::get('/platform/schools/{school}/billing', [PlatformBillingController::class, 'show'])->name('platform.billing.show');
             Route::post('/platform/schools/{school}/billing/checkout', [PlatformBillingController::class, 'checkout'])->name('platform.billing.checkout');
-
             Route::get('/platform/curriculum-documents', [CurriculumDocumentController::class, 'index'])->name('platform.curriculum-documents.index');
             Route::post('/platform/curriculum-documents', [CurriculumDocumentController::class, 'store'])->name('platform.curriculum-documents.store');
             Route::get('/platform/curriculum-documents/{document}', [CurriculumDocumentController::class, 'show'])->name('platform.curriculum-documents.show');
@@ -138,49 +118,33 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
             Route::delete('/platform/curriculum-documents/{document}', [CurriculumDocumentController::class, 'destroy'])->name('platform.curriculum-documents.destroy');
             Route::put('/platform/curriculum-document-chunks/{chunk}', [CurriculumDocumentController::class, 'updateChunk'])->name('platform.curriculum-document-chunks.update');
             Route::delete('/platform/curriculum-document-chunks/{chunk}', [CurriculumDocumentController::class, 'destroyChunk'])->name('platform.curriculum-document-chunks.destroy');
-
             Route::get('/platform/curriculum-exemplars', [CurriculumExemplarController::class, 'index'])->name('platform.curriculum-exemplars.index');
             Route::post('/platform/curriculum-exemplars', [CurriculumExemplarController::class, 'store'])->name('platform.curriculum-exemplars.store');
             Route::post('/platform/research-requests/{researchRequest}/promote', [CurriculumExemplarController::class, 'promote'])->name('platform.research-requests.promote');
             Route::delete('/platform/curriculum-exemplars/{exemplar}', [CurriculumExemplarController::class, 'destroy'])->name('platform.curriculum-exemplars.destroy');
         });
     });
-
     Route::scopeBindings()->group(function () {
         Route::get('/platform/schools/{school}/billing/callback', [PlatformBillingController::class, 'callback'])->name('platform.billing.callback');
     });
 });
 
-/*
-|--------------------------------------------------------------------------
-| TENANT / SCHOOL ROUTES
-|--------------------------------------------------------------------------
-*/
 Route::middleware(['web', ResolveTenant::class])->group(function () {
-
     Route::scopeBindings()->group(function () {
-
         Route::get('/', [HomeController::class, 'index'])->name('school.home');
         Route::get('/school-home', [HomeController::class, 'index']);
         Route::get('/activities', [ActivityController::class, 'index'])->name('activities.index');
-
         Route::get('/enroll', [StudentAuthController::class, 'showForm'])->name('student.form');
         Route::post('/enroll', [StudentAuthController::class, 'register'])->name('student.register');
-
         Route::get('/set-password', [StudentAuthController::class, 'showSetPassword'])->name('student.set-password');
         Route::post('/set-password', [StudentAuthController::class, 'setPassword'])->name('student.set-password.submit');
-
         Route::get('/student/login', [StudentAuthController::class, 'showLogin'])->name('student.login');
-        Route::post('/student/login', [StudentAuthController::class, 'login'])
-            ->middleware('throttle:6,1')
-            ->name('student.login.submit');
+        Route::post('/student/login', [StudentAuthController::class, 'login'])->middleware('throttle:6,1')->name('student.login.submit');
         Route::post('/student/logout', [StudentAuthController::class, 'logout'])->name('student.logout');
-
         Route::middleware('auth:student')->group(function () {
             Route::get('/student/exam', [StudentExamController::class, 'show'])->name('student.exam');
             Route::post('/student/exam', [StudentExamController::class, 'submit'])->name('student.exam.submit');
             Route::get('/student/application-status', [StudentAuthController::class, 'applicationStatus'])->name('student.application-status');
-
             Route::middleware('admitted')->group(function () {
                 Route::get('/student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
                 Route::get('/student/assignments', [StudentAssignmentController::class, 'index'])->name('student.assignments');
@@ -197,7 +161,6 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
                 Route::get('/student/virtual-classes/{virtualClass}/join', [StudentVirtualClassController::class, 'join'])->name('student.virtual-classes.join');
             });
         });
-
         Route::get('/teacher/login', [TeacherAuthController::class, 'showLogin'])->name('teacher.login');
         Route::post('/teacher/login', [TeacherAuthController::class, 'login'])->middleware('throttle:6,1')->name('teacher.login.submit');
         Route::get('/teacher/signup', [TeacherAuthController::class, 'showSignup'])->name('teacher.signup');
@@ -207,7 +170,6 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
         Route::get('/teacher/set-password', [TeacherAuthController::class, 'showSetPassword'])->name('teacher.set-password');
         Route::post('/teacher/set-password', [TeacherAuthController::class, 'setPassword'])->name('teacher.set-password.submit');
         Route::post('/teacher/logout', [TeacherAuthController::class, 'logout'])->name('teacher.logout');
-
         Route::middleware('auth:teacher')->group(function () {
             Route::get('/teacher/dashboard', [TeacherDashboardController::class, 'index'])->name('teacher.dashboard');
             Route::post('/assignments', [AssignmentController::class, 'store'])->name('assignments.store');
@@ -235,11 +197,9 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
             Route::post('/teacher/virtual-classes', [VirtualClassController::class, 'store'])->name('teacher.virtual-classes.store');
             Route::post('/teacher/virtual-classes/{virtualClass}/cancel', [VirtualClassController::class, 'cancel'])->name('teacher.virtual-classes.cancel');
         });
-
         Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
         Route::post('/admin/login', [AdminAuthController::class, 'login'])->middleware('throttle:6,1')->name('admin.login.submit');
         Route::post('/admin/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
-
         Route::middleware('auth:admin')->group(function () {
             Route::get('/admin/dashboard', [AdminStudentController::class, 'dashboard'])->name('admin.dashboard');
             Route::get('/admin/settings', [SchoolSettingsController::class, 'show'])->name('admin.settings');
