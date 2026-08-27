@@ -41,25 +41,7 @@ use App\Http\Controllers\VirtualClassController;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/debug-dash', function () {
-    $admin = Illuminate\Support\Facades\Auth::guard('admin')->user();
-    if (!$admin) {
-        return 'NOT LOGGED IN - login at /admin/login then visit /debug-dash';
-    }
-    // Don't call dashboard yet - just show data
-    $schools = Illuminate\Support\Facades\DB::table('schools')->get();
-    return response()->json([
-        'admin_id' => $admin->id,
-        'email' => $admin->email,
-        'school_id' => $admin->school_id,
-        'schools_in_db' => $schools,
-        'host' => request()->getHost(),
-        'central_domain' => config('app.central_domain'),
-    ]);
-})->middleware('web');
-    }
-
-Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
+Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST))->group(function () {
     Route::get('/', [HomeController::class, 'centralHome'])->name('home');
     Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
     Route::get('/storage/{path}', [StorageFallbackController::class, 'show'])->where('path', '.*')->name('storage.fallback');
