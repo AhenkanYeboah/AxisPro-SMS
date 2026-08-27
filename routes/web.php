@@ -41,50 +41,23 @@ use App\Http\Controllers\VirtualClassController;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Support\Facades\Route;
 
-// SINGLE DEBUG ROUTE - TOP LEVEL, BYPASSES ResolveTenant
+// ULTRA SIMPLE DEBUG - NO INNER TRY/CATCH
 Route::get('/debug-dash', function () {
+    $admin = Illuminate\Support\Facades\Auth::guard('admin')->user();
+    if (!$admin) {
+        return 'NOT LOGGED IN - go to /admin/login first then visit /debug-dash';
+    }
+    echo "Admin: " . $admin->email . " school_id=" . ($admin->school_id ?? 'NULL') . "<br>";
+    echo "Schools count: " . Illuminate\Support\Facades\DB::table('schools')->count() . "<br>";
+    echo "Admins count: " . Illuminate\Support\Facades\DB::table('admins')->count() . "<br>";
+    
     try {
-        echo "Host: " . request()->getHost() . "<br>";
-        echo "CENTRAL_DOMAIN: " . config('app.central_domain') . "<br>";
-        echo "APP_URL: " . config('app.url') . "<br><br>";
-        
-        $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
-        if (!$admin) {
-            echo "Session keys: " . implode(', ', array_keys(session()->all())) . "<br>";
-            return "Not logged in as admin. Login at /admin/login then visit /debug-dash immediately in same browser.";
-        }
-        
-        echo "Admin ID: {$admin->id}<br>";
-        echo "Email: {$admin->email}<br>";
-        echo "School ID: " . ($admin->school_id ?? 'NULL - THIS IS BUG') . "<br><br>";
-        
-        echo "Tables:<br>";
-        foreach (['schools','admins','teachers','students','attendance','class_levels'] as $table) {
-            try {
-                echo "- $table: " . \DB::table($table)->count() . "<br>";
-            } catch (\Throwable $e) {
-                echo "- <b>$table ERROR: " . $e->getMessage() . "</b><br>";
-            }
-        }
-        
-        if ($admin->school_id) {
-            $school = \DB::table('schools')->where('id', $admin->school_id)->first();
-            echo "<br>School record: " . ($school ? $school->name : 'NOT FOUND') . "<br>";
-        } else {
-            echo "<br><b>Admin has no school_id. Listing schools:</b><br>";
-            foreach (\DB::table('schools')->limit(5)->get() as $s) {
-                echo "- id={$s->id} name={$s->name}<br>";
-            }
-        }
-        
-        echo "<hr>Calling dashboard controller...<br>";
-        $controller = new \App\Http\Controllers\AdminStudentController();
+        $controller = new App\Http\Controllers\AdminStudentController();
         return $controller->dashboard(request());
-        
-    } catch (\Throwable $e) {
-        echo "<h1>REAL ERROR:</h1>";
-        echo "Message: " . $e->getMessage() . "<br>";
-        echo "File: " . $e->getFile() . ":" . $e->getLine() . "<br>";
+    } catch (Throwable $e) {
+        echo "<h1>REAL ERROR</h1>";
+        echo $e->getMessage() . "<br>";
+        echo $e->getFile() . ":" . $e->getLine() . "<br>";
         echo "<pre>" . $e->getTraceAsString() . "</pre>";
     }
 })->middleware('web');
