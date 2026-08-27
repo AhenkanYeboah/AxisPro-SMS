@@ -58,7 +58,6 @@ Route::get('/debug-dash', function () {
     ]);
 })->middleware('web');
     }
-})->middleware('web');
 
 Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
     Route::get('/', [HomeController::class, 'centralHome'])->name('home');
