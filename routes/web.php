@@ -51,6 +51,52 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
     Route::get('/', [HomeController::class, 'centralHome'])->name('home');
     Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
 
+    // DEBUG - bypasses ResolveTenant - DELETE AFTER FIX
+    Route::get('/debug-dash', function () {
+        try {
+            echo "CENTRAL_DOMAIN: " . config('app.central_domain') . "<br>";
+            echo "APP_URL: " . config('app.url') . "<br>";
+            echo "Host: " . request()->getHost() . "<br><br>";
+            
+            $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
+            if (!$admin) {
+                return "Not logged in. Login at /admin/login then visit /debug-dash in same browser.";
+            }
+            echo "Admin ID: {$admin->id} - {$admin->email}<br>";
+            echo "School ID: " . ($admin->school_id ?? 'NULL') . "<br><br>";
+            
+            echo "Checking tables...<br>";
+            foreach (['admins','teachers','students','attendance','schools','class_levels'] as $table) {
+                try {
+                    echo "$table: " . \DB::table($table)->count() . "<br>";
+                } catch (\Throwable $e) {
+                    echo "<b>$table ERROR: " . $e->getMessage() . "</b><br>";
+                }
+            }
+            
+            if (!$admin->school_id) {
+                echo "<br><b style='color:red'>ADMIN HAS NULL school_id — THIS IS LIKELY THE BUG</b><br>";
+                echo "Schools in DB:<br>";
+                foreach (\DB::table('schools')->limit(5)->get() as $s) {
+                    echo "- {$s->id}: {$s->name} | domain: " . ($s->domain ?? 'no domain') . "<br>";
+                }
+            } else {
+                $school = \DB::table('schools')->where('id', $admin->school_id)->first();
+                echo "<br>School: " . ($school ? $school->name : 'NOT FOUND for id ' . $admin->school_id) . "<br>";
+            }
+            
+            echo "<hr>Trying dashboard controller directly...<br>";
+            $controller = new \App\Http\Controllers\AdminStudentController();
+            return $controller->dashboard(request());
+            
+        } catch (\Throwable $e) {
+            echo "<h1>REAL ERROR FOUND:</h1>";
+            echo "<b>Message:</b> " . $e->getMessage() . "<br>";
+            echo "<b>File:</b> " . $e->getFile() . ":" . $e->getLine() . "<br>";
+            echo "<pre>" . $e->getTraceAsString() . "</pre>";
+        }
+    });
+
     Route::get('/storage/{path}', [StorageFallbackController::class, 'show'])
         ->where('path', '.*')
         ->name('storage.fallback');
@@ -150,17 +196,11 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
         });
 
         Route::get('/teacher/login', [TeacherAuthController::class, 'showLogin'])->name('teacher.login');
-        Route::post('/teacher/login', [TeacherAuthController::class, 'login'])
-            ->middleware('throttle:6,1')
-            ->name('teacher.login.submit');
+        Route::post('/teacher/login', [TeacherAuthController::class, 'login'])->middleware('throttle:6,1')->name('teacher.login.submit');
         Route::get('/teacher/signup', [TeacherAuthController::class, 'showSignup'])->name('teacher.signup');
-        Route::post('/teacher/signup', [TeacherAuthController::class, 'signup'])
-            ->middleware('throttle:6,1')
-            ->name('teacher.signup.submit');
+        Route::post('/teacher/signup', [TeacherAuthController::class, 'signup'])->middleware('throttle:6,1')->name('teacher.signup.submit');
         Route::get('/teacher/verify', [TeacherAuthController::class, 'showVerify'])->name('teacher.verify');
-        Route::post('/teacher/verify', [TeacherAuthController::class, 'verify'])
-            ->middleware('throttle:10,1')
-            ->name('teacher.verify.submit');
+        Route::post('/teacher/verify', [TeacherAuthController::class, 'verify'])->middleware('throttle:10,1')->name('teacher.verify.submit');
         Route::get('/teacher/set-password', [TeacherAuthController::class, 'showSetPassword'])->name('teacher.set-password');
         Route::post('/teacher/set-password', [TeacherAuthController::class, 'setPassword'])->name('teacher.set-password.submit');
         Route::post('/teacher/logout', [TeacherAuthController::class, 'logout'])->name('teacher.logout');
@@ -242,30 +282,6 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
             Route::get('/admin/notices', [AdminNoticeController::class, 'index'])->name('admin.notices.index');
             Route::post('/admin/notices', [AdminNoticeController::class, 'store'])->name('admin.notices.store');
             Route::get('/admin/notices/{notice}', [AdminNoticeController::class, 'show'])->name('admin.notices.show');
-
-            // DEBUG - delete after fixing dashboard
-            Route::get('/debug-dash', function () {
-                try {
-                    $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
-                    if (!$admin) {
-                        return "Not logged in as admin - login first at /admin/login then visit /debug-dash";
-                    }
-                    echo "Admin ID: " . $admin->id . " - " . $admin->email . "<br>";
-                    echo "School ID: " . ($admin->school_id ?? 'NULL') . "<br><br>";
-                    foreach (['admins','teachers','students','attendance','schools','class_levels','fee_items'] as $table) {
-                        try {
-                            echo "$table: " . \DB::table($table)->count() . "<br>";
-                        } catch (\Throwable $e) {
-                            echo "<b>$table ERROR: " . $e->getMessage() . "</b><br>";
-                        }
-                    }
-                    echo "<hr>Calling real dashboard...<br>";
-                    $controller = new \App\Http\Controllers\AdminStudentController();
-                    return $controller->dashboard(request());
-                } catch (\Throwable $e) {
-                    echo "<h1>REAL ERROR:</h1><b>Message:</b> " . $e->getMessage() . "<br><b>File:</b> " . $e->getFile() . ":" . $e->getLine() . "<br><pre>" . $e->getTraceAsString() . "</pre>";
-                }
-            });
         });
     });
 });
