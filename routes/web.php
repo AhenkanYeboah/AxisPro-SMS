@@ -52,27 +52,30 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
     Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
 
     // DEBUG - bypasses ResolveTenant - DELETE AFTER FIX
-    Route::get('/debug-dash', function () {
-        try {
-            echo "CENTRAL_DOMAIN: " . config('app.central_domain') . "<br>";
-            echo "APP_URL: " . config('app.url') . "<br>";
-            echo "Host: " . request()->getHost() . "<br><br>";
-            
-            $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
-            if (!$admin) {
-                return "Not logged in. Login at /admin/login then visit /debug-dash in same browser.";
-            }
-            echo "Admin ID: {$admin->id} - {$admin->email}<br>";
-            echo "School ID: " . ($admin->school_id ?? 'NULL') . "<br><br>";
-            
-            echo "Checking tables...<br>";
-            foreach (['admins','teachers','students','attendance','schools','class_levels'] as $table) {
-                try {
-                    echo "$table: " . \DB::table($table)->count() . "<br>";
-                } catch (\Throwable $e) {
-                    echo "<b>$table ERROR: " . $e->getMessage() . "</b><br>";
-                }
-            }
+ Route::get('/debug-dash', function () {
+    try {
+        echo "Host: " . request()->getHost() . "<br>";
+        echo "CENTRAL_DOMAIN: " . config('app.central_domain') . "<br><br>";
+        $admin = \Illuminate\Support\Facades\Auth::guard('admin')->user();
+        if (!$admin) {
+            // Try to see if session exists at all
+            echo "Not logged in as admin. Session: " . json_encode(session()->all()) . "<br>";
+            return "Please login at /admin/login first, then immediately visit /debug-dash";
+        }
+        echo "Admin: {$admin->id} - {$admin->email} - school_id: " . ($admin->school_id ?? 'NULL') . "<br>";
+        $school = $admin->school_id ? \DB::table('schools')->where('id', $admin->school_id)->first() : null;
+        echo "School: " . ($school ? $school->name : 'NONE') . "<br><br>";
+        foreach (['schools','admins','teachers','students','attendance'] as $t) {
+            try { echo "$t: " . \DB::table($t)->count() . "<br>"; } 
+            catch (\Throwable $e) { echo "$t ERROR: {$e->getMessage()}<br>"; }
+        }
+        echo "<hr>";
+        $controller = new \App\Http\Controllers\AdminStudentController();
+        return $controller->dashboard(request());
+    } catch (\Throwable $e) {
+        echo "ERROR: {$e->getMessage()}<br>File: {$e->getFile()}:{$e->getLine()}<br><pre>{$e->getTraceAsString()}</pre>";
+    }
+})->middleware('web');
             
             if (!$admin->school_id) {
                 echo "<br><b style='color:red'>ADMIN HAS NULL school_id — THIS IS LIKELY THE BUG</b><br>";
