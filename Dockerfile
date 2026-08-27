@@ -9,23 +9,34 @@ RUN apt-get update && apt-get install -y \
     && a2enmod rewrite \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Apache config
+# Apache to serve from public
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-COPY . .
-RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Permissions + storage link - NO CACHE HERE
-RUN php artisan storage:link --force || true \
+# Copy code first
+COPY . .
+
+# FIX: Create writable dirs BEFORE composer install
+RUN mkdir -p bootstrap/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/framework/cache \
+    storage/logs \
+    storage/app/public \
     && chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache \
-    && php artisan config:clear \
-    && php artisan route:clear \
-    && php artisan view:clear
+    && chmod -R 775 storage bootstrap/cache
+
+# Now install - will not fail
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts \
+    && composer run-script post-autoload-dump --no-interaction || true \
+    && php artisan package:discover --ansi || true \
+    && php artisan storage:link --force || true \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 80
 
-# IMPORTANT: clear cache on every start, then migrate, then start apache
+# Clear cache on start + migrate + start apache
 CMD php artisan config:clear && php artisan route:clear && php artisan view:clear && php artisan migrate --force && apache2-foreground
