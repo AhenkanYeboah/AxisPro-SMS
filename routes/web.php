@@ -46,16 +46,17 @@ Route::get('/debug-dash', function () {
     if (!$admin) {
         return 'NOT LOGGED IN - login at /admin/login then visit /debug-dash';
     }
-    echo "Admin: " . $admin->email . " school_id=" . ($admin->school_id ?? 'NULL') . "<br>";
-    echo "Schools: " . Illuminate\Support\Facades\DB::table('schools')->count() . "<br>";
-    try {
-        $c = new App\Http\Controllers\AdminStudentController();
-        return $c->dashboard(request());
-    } catch (\Throwable $e) {
-        echo "<h1>REAL ERROR</h1>";
-        echo "Message: " . $e->getMessage() . "<br>";
-        echo "File: " . $e->getFile() . ":" . $e->getLine() . "<br>";
-        echo "<pre>" . $e->getTraceAsString() . "</pre>";
+    // Don't call dashboard yet - just show data
+    $schools = Illuminate\Support\Facades\DB::table('schools')->get();
+    return response()->json([
+        'admin_id' => $admin->id,
+        'email' => $admin->email,
+        'school_id' => $admin->school_id,
+        'schools_in_db' => $schools,
+        'host' => request()->getHost(),
+        'central_domain' => config('app.central_domain'),
+    ]);
+})->middleware('web');
     }
 })->middleware('web');
 
