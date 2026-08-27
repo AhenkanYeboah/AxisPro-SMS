@@ -41,23 +41,20 @@ use App\Http\Controllers\VirtualClassController;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Support\Facades\Route;
 
-// ULTRA SIMPLE DEBUG - NO INNER TRY/CATCH
 Route::get('/debug-dash', function () {
     $admin = Illuminate\Support\Facades\Auth::guard('admin')->user();
     if (!$admin) {
-        return 'NOT LOGGED IN - go to /admin/login first then visit /debug-dash';
+        return 'NOT LOGGED IN - login at /admin/login then visit /debug-dash';
     }
     echo "Admin: " . $admin->email . " school_id=" . ($admin->school_id ?? 'NULL') . "<br>";
-    echo "Schools count: " . Illuminate\Support\Facades\DB::table('schools')->count() . "<br>";
-    echo "Admins count: " . Illuminate\Support\Facades\DB::table('admins')->count() . "<br>";
-    
+    echo "Schools: " . Illuminate\Support\Facades\DB::table('schools')->count() . "<br>";
     try {
-        $controller = new App\Http\Controllers\AdminStudentController();
-        return $controller->dashboard(request());
-    } catch (Throwable $e) {
+        $c = new App\Http\Controllers\AdminStudentController();
+        return $c->dashboard(request());
+    } catch (\Throwable $e) {
         echo "<h1>REAL ERROR</h1>";
-        echo $e->getMessage() . "<br>";
-        echo $e->getFile() . ":" . $e->getLine() . "<br>";
+        echo "Message: " . $e->getMessage() . "<br>";
+        echo "File: " . $e->getFile() . ":" . $e->getLine() . "<br>";
         echo "<pre>" . $e->getTraceAsString() . "</pre>";
     }
 })->middleware('web');
