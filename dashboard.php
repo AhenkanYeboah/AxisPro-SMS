@@ -6,7 +6,7 @@
 @section('welcome-message', 'Welcome, ' . (auth('admin')->user()->full_name ?? auth('admin')->user()->username ?? auth('admin')->user()->email ?? 'Admin') . ' 👋')
 
 @section('nav-links')
-    {{-- FIX: url() not route() so it never crashes with RouteNotFoundException --}}
+    {{-- FIX: url() not route() so it never crashes with RouteNotFoundException --}}h
     {{-- FIX: Home goes to /school-home which is smart - shows Royal Countryside when logged in --}}
     <a href="{{ url('/school-home') }}"><i class="nav-icon">⌂</i> Home</a>
     <a href="{{ url('/activities') }}"><i class="nav-icon">📋</i> Activities</a>
