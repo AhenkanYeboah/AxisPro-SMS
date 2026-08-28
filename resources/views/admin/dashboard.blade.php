@@ -21,7 +21,7 @@
 @endsection
 
 @section('topbar-right')
-    <span class="user-greeting">🔑 <strong>{{ auth('admin')->user()->username }}</strong></span>
+    <span class="user-greeting">🔑 <strong>{{ auth('admin')->user()->username ?? auth('admin')->user()->email ?? 'Admin' }}</strong></span>
     <a href="{{ route('student.form') }}" class="btn-gold" style="padding:8px 18px; font-size:12px;">+ New Enrollment</a>
     <form method="POST" action="{{ route('admin.logout') }}" style="display:inline;">
         @csrf
