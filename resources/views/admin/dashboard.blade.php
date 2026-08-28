@@ -3,7 +3,7 @@
 @section('title', 'Admin Dashboard')
 @section('sidebar-sub', 'Admin Dashboard')
 @section('page-label', 'Admin Dashboard')
-@section('welcome-message', 'Welcome, ' . auth('admin')->user()->full_name . ' 👋')
+@section('welcome-message', 'Welcome, ' . (auth('admin')->user()->full_name ?? auth('admin')->user()->username ?? auth('admin')->user()->email ?? 'Admin') . ' 👋')
 
 @section('nav-links')
     <a href="{{ route('school.home') }}"><i class="nav-icon">⌂</i> Home</a>
