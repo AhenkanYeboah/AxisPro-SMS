@@ -10,38 +10,14 @@ use App\Support\StudentStats;
 use App\Mail\ExamScheduledMail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 use Throwable;
 
 class AdminStudentController extends Controller
 {
-    public function dashboard(Request $request): View|RedirectResponse
+    public function dashboard(Request $request)
     {
-        if ($request->has('debug')) {
-            try {
-                $admin = auth('admin')->user();
-                $school = $admin->school ?? null;
-                $query = Student::query();
-                if ($school && isset($school->id)) $query->where('school_id', $school->id);
-                $students = $query->limit(1)->get();
-                $stats = StudentStats::compute();
-                return response()->json([
-                    'admin' => $admin->only(['id','email','school_id','username']),
-                    'school' => $school ? $school->only(['id','name']) : null,
-                    'stats' => $stats,
-                    'students_count' => $students->count(),
-                    'ok' => true
-                ]);
-            } catch (Throwable $e) {
-                return response()->json([
-                    'error' => $e->getMessage(),
-                    'file' => $e->getFile().':'.$e->getLine(),
-                ], 500);
-            }
-        }
-
         try {
             $school = null;
             try { if (app()->bound('currentSchool')) $school = app('currentSchool'); } catch (Throwable $e) {}
@@ -70,11 +46,10 @@ class AdminStudentController extends Controller
 
             return view('admin.dashboard', compact('students','recentApplicants','classRoster','stats','allActivities','school'));
         } catch (Throwable $e) {
-            Log::error('DASHBOARD CRASH: '.$e->getMessage());
-            return response()->view('admin.dashboard', [
+            return view('admin.dashboard', [
                 'students'=>collect(),'recentApplicants'=>collect(),'classRoster'=>collect(),
                 'stats'=>['total'=>0,'admitted'=>0,'pending'=>0,'male'=>0,'female'=>0,'by_class'=>collect(),'by_region'=>collect()],
-                'allActivities'=>collect(),'school'=>null,'error'=>$e->getMessage()
+                'allActivities'=>collect(),'school'=>School::first(),'error'=>$e->getMessage()
             ]);
         }
     }
