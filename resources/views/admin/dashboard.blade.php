@@ -15,7 +15,7 @@
     <a href="{{ route('admin.fees.index') }}"><i class="nav-icon">💳</i> Billing</a>
     <a href="{{ route('admin.notices.index') }}"><i class="nav-icon">📣</i> Notices</a>
     <a href="{{ route('admin.class-levels.index') }}"><i class="nav-icon">🏫</i> Classes</a>
-    <a href="{{ route('admin.teachers.index') }}"><i class="nav-icon">🧑‍🏫</i> Teachers</a>
+    <a href="{{ route('admin.teachers.index') }}"><i class="nav-icon">🧑🏫</i> Teachers</a>
     <a href="{{ route('admin.exemplars.index') }}"><i class="nav-icon">⭐</i> Exemplars</a>
     <a href="{{ route('admin.settings') }}"><i class="nav-icon">🎨</i> Settings</a>
 @endsection
@@ -32,6 +32,24 @@
 @section('content')
     @if (session('status'))
         <div class="message success">✅ {{ session('status') }}</div>
+    @endif
+
+    {{-- SAFETY FIX: Accept both array and object from StudentStats --}}
+    @php
+      $stats = is_array($stats) ? $stats : (array) $stats;
+      $stats['total'] = $stats['total'] ?? 0;
+      $stats['admitted'] = $stats['admitted'] ?? 0;
+      $stats['pending'] = $stats['pending'] ?? 0;
+      $stats['male'] = $stats['male'] ?? 0;
+      $stats['female'] = $stats['female'] ?? 0;
+      $stats['by_region'] = $stats['by_region'] ?? collect();
+      $stats['by_class'] = $stats['by_class'] ?? collect();
+    @endphp
+
+    @if(isset($error))
+        <div class="message" style="background:#fee; border:1px solid #f99; padding:12px; border-radius:8px; margin-bottom:16px;">
+            ⚠️ Debug: {{ $error }}
+        </div>
     @endif
 
     {{-- STATS --}}
