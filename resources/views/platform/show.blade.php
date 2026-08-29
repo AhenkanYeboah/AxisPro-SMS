@@ -1,67 +1,118 @@
 @extends('layouts.dashboard')
 
+@section('title', $school->name . ' â€” Billing â€” Platform Admin')
+@section('sidebar-sub', 'Platform Admin')
+@section('page-label', $school->name . ' Â· Billing')
+@section('welcome-message', 'Welcome, ' . auth('platform')->user()->name . ' ðŸ‘‹')
+
+@section('nav-links')
+    <a href="{{ route('platform.dashboard') }}"><i class="nav-icon">â–¤</i> Schools</a>
+@endsection
+
+@section('topbar-right')
+    <form method="POST" action="{{ route('platform.logout') }}" style="display:inline;">
+        @csrf
+        <button type="submit" class="auth-btn auth-btn-logout">ðŸšª Logout</button>
+    </form>
+@endsection
+
 @section('content')
-<div class="max-w-4xl mx-auto p-6">
-    <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-bold">Billing — {{ $school->name }}</h1>
-        <a href="{{ route('platform.schools.show', $school) }}" class="text-sm text-gray-600 hover:text-black">← Back to school</a>
+    @if (session('success'))
+        <div class="message success">âœ… {{ session('success') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="message error">âŒ {{ session('error') }}</div>
+    @endif
+
+    <p style="margin-top:-8px; margin-bottom:20px;">
+        <a href="{{ route('platform.schools.show', $school) }}" style="font-size:13px; color:var(--muted);">â† Back to {{ $school->name }}</a>
+    </p>
+
+    <div class="card card-padded" style="margin-bottom:24px;">
+        <h3 style="margin-top:0;">Subscription Status</h3>
+        <p>
+            @if ($school->displayStatus() === 'active')
+                <span class="status-badge status-active">Active</span>
+                â€” subscribed to the <strong>{{ $school->plan ? ucfirst($school->plan) : 'a' }}</strong> plan.
+                @if ($school->subscription_ends_at)
+                    Renews/expires {{ $school->subscription_ends_at->format('d M Y') }}.
+                @endif
+            @elseif ($school->displayStatus() === 'trial')
+                <span class="status-badge status-pending">Trial</span>
+                @if ($school->trial_ends_at)
+                    â€” trial ends {{ $school->trial_ends_at->format('d M Y') }}.
+                @else
+                    â€” on an open-ended trial.
+                @endif
+            @elseif ($school->displayStatus() === 'expired')
+                <span class="status-badge status-declined">Expired</span>
+                â€” subscription period has ended.
+            @else
+                <span class="status-badge status-declined">Suspended</span>
+            @endif
+        </p>
     </div>
 
-    @if(!$paystackReady)
-        <div class="bg-yellow-50 border border-yellow-200 p-4 rounded mb-6">
-            <p class="font-semibold text-yellow-800">Paystack not configured</p>
-            <p class="text-sm text-yellow-700">Add PAYSTACK_SECRET_KEY in Render → Environment Variables. Use sk_test_... for testing.</p>
-        </div>
-    @endif
-
-    @if($errors->any())
-        <div class="bg-red-50 border border-red-200 p-4 rounded mb-6">
-            <p class="font-semibold text-red-800">Error</p>
-            <ul class="list-disc ml-5 text-sm text-red-700">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    @if(session('success'))
-        <div class="bg-green-50 border border-green-200 p-4 rounded mb-6 text-green-800">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    <div class="bg-white rounded shadow p-6">
-        <h2 class="font-semibold mb-4">Subscription / Payment</h2>
-        
-        <div class="mb-4 text-sm text-gray-600">
-            <p>School: <strong>{{ $school->name }}</strong> (ID: {{ $school->id }})</p>
-            <p>Email: {{ $school->email ?? 'N/A' }}</p>
-        </div>
-
-        <form method="POST" action="{{ route('platform.billing.checkout', $school) }}" class="space-y-4">
-            @csrf
-            
-            <div>
-                <label class="block text-sm font-medium mb-1">Amount (GHS)</label>
-                <input type="number" name="amount" value="{{ old('amount', 100) }}" min="1" step="1"
-                    class="w-full border rounded px-3 py-2" placeholder="100">
-                <p class="text-xs text-gray-500 mt-1">Will be charged in pesewas (×100) via Paystack</p>
+    <h3 style="margin-bottom:12px;">Start a Checkout on {{ $school->name }}'s Behalf</h3>
+    <p style="font-size:13px; color:var(--muted); margin-top:-4px;">
+        Use this to generate a Paystack payment link for this school â€” e.g. if you're
+        walking them through payment on a call, or renewing on their behalf.
+    </p>
+    <div class="stats-grid">
+        @foreach ($plans as $key => $plan)
+            <div class="card card-padded" style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                    <h4 style="margin:0 0 4px 0;">{{ $plan['name'] }}</h4>
+                    <p style="font-size:22px; font-weight:700; margin:8px 0;">
+                        GHS {{ number_format($plan['amount_pesewas'] / 100, 2) }}
+                        <span style="font-size:12px; font-weight:400; color:var(--muted);">/ {{ $plan['interval'] }}</span>
+                    </p>
+                    <p style="font-size:13px; color:var(--muted);">{{ $plan['description'] }}</p>
+                </div>
+                <form method="POST" action="{{ route('platform.billing.checkout', $school) }}">
+                    @csrf
+                    <input type="hidden" name="plan" value="{{ $key }}">
+                    <button type="submit" class="btn-gold" style="width:100%; padding:12px;">
+                        {{ $school->plan === $key ? 'Renew this plan' : 'Start checkout' }} â†’
+                    </button>
+                </form>
             </div>
-
-            <div>
-                <label class="block text-sm font-medium mb-1">Plan (optional)</label>
-                <input type="text" name="plan" value="{{ old('plan', 'monthly') }}"
-                    class="w-full border rounded px-3 py-2" placeholder="monthly">
-            </div>
-
-            <button type="submit" 
-                class="bg-black text-white px-6 py-2 rounded hover:bg-gray-800 disabled:opacity-50"
-                {{ !$paystackReady ? 'disabled' : '' }}>
-                Pay with Paystack
-            </button>
-        </form>
-
+        @endforeach
     </div>
-</div>
+
+    <h4 style="margin:28px 0 12px 0;">Payment History</h4>
+    <div class="card table-scroll" style="overflow:hidden; overflow-x:auto;">
+        <table style="min-width:800px;">
+            <thead>
+                <tr>
+                    <th>Reference</th><th>Plan</th><th>Amount</th><th>Status</th><th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($school->payments as $payment)
+                    <tr>
+                        <td style="font-size:12px; color:var(--muted);">{{ $payment->reference }}</td>
+                        <td>{{ ucfirst($payment->plan) }}</td>
+                        <td>GHS {{ number_format($payment->amount_pesewas / 100, 2) }}</td>
+                        <td>
+                            @if ($payment->status === 'success')
+                                <span class="status-badge status-active">Success</span>
+                            @elseif ($payment->status === 'pending')
+                                <span class="status-badge status-pending">Pending</span>
+                            @else
+                                <span class="status-badge status-declined">{{ ucfirst($payment->status) }}</span>
+                            @endif
+                        </td>
+                        <td style="font-size:12px; color:var(--muted);">{{ $payment->created_at->format('d M Y, g:ia') }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" style="text-align:center; color:var(--muted); padding:24px;">No payments yet.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    <p style="font-size:12px; color:var(--muted); margin-top:20px;">
+        Payments are processed securely by Paystack.
+    </p>
 @endsection
