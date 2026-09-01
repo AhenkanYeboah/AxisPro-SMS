@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToSchool;
+use App\Models\Traits\BelongsToSchool;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class Admin extends Authenticatable
