@@ -42,7 +42,6 @@ use App\Http\Middleware\ResolveTenant;
 use Illuminate\Support\Facades\Route;
 
 Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_HOST)))->group(function () {
-    // FIX: Removed '/' from here — it was shadowing tenant '/' and forcing platform home always
     Route::get('/platform', [HomeController::class, 'centralHome'])->name('platform.home');
     Route::get('/storage/{path}', [StorageFallbackController::class, 'show'])->where('path', '.*')->name('storage.fallback');
     Route::get('/signup', [SchoolSignupController::class, 'create'])->name('school.signup');
@@ -83,7 +82,6 @@ Route::domain(config('app.central_domain', parse_url(config('app.url'), PHP_URL_
 
 Route::middleware(['web', ResolveTenant::class])->group(function () {
     Route::scopeBindings()->group(function () {
-        // FIX: Single smart '/' - if currentSchool bound -> school homepage, else platform homepage
         Route::get('/', [HomeController::class, 'index'])->name('school.home');
         Route::get('/home', [HomeController::class, 'index'])->name('home');
         Route::get('/school-home', [HomeController::class, 'index']);
@@ -106,6 +104,9 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
         Route::post('/teacher/signup', [TeacherAuthController::class, 'signup'])->name('teacher.signup.submit');
         Route::get('/teacher/set-password', [TeacherAuthController::class, 'showSetPassword'])->name('teacher.set-password');
         Route::post('/teacher/set-password', [TeacherAuthController::class, 'setPassword'])->name('teacher.set-password.submit');
+        // FIX: Added missing verify routes that controller expects
+        Route::get('/teacher/verify', [TeacherAuthController::class, 'showVerify'])->name('teacher.verify');
+        Route::post('/teacher/verify', [TeacherAuthController::class, 'verify'])->name('teacher.verify.submit');
 
         Route::middleware('auth:student')->group(function () {
             Route::get('/student/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
@@ -163,29 +164,4 @@ Route::middleware(['web', ResolveTenant::class])->group(function () {
             Route::post('/admin/invites', [AdminInviteController::class, 'store'])->name('admin.invites.store');
             Route::delete('/admin/invites/{invite}', [AdminInviteController::class, 'destroy'])->name('admin.invites.destroy');
             Route::get('/admin/students/{student}', [AdminStudentController::class, 'show'])->name('admin.students.show');
-            Route::post('/admin/students/{student}/exam-date', [AdminStudentController::class, 'setExamDate'])->name('admin.students.exam-date');
-            Route::post('/admin/students/{student}/exam-completed', [AdminStudentController::class, 'markExamCompleted'])->name('admin.students.exam-completed');
-            Route::post('/admin/students/{student}/verify', [AdminStudentController::class, 'verify'])->name('admin.students.verify');
-            Route::post('/admin/students/{student}/decline', [AdminStudentController::class, 'decline'])->name('admin.students.decline');
-            Route::delete('/admin/students/{student}', [AdminStudentController::class, 'destroy'])->name('admin.students.destroy');
-            Route::get('/admin/exams', [AdminExamController::class, 'index'])->name('admin.exams.index');
-            Route::post('/admin/exams', [AdminExamController::class, 'store'])->name('admin.exams.store');
-            Route::get('/admin/exams/{exam}', [AdminExamController::class, 'show'])->name('admin.exams.show');
-            Route::delete('/admin/exams/{exam}', [AdminExamController::class, 'destroy'])->name('admin.exams.destroy');
-            Route::post('/admin/exam-submissions/{submission}/grade', [AdminExamController::class, 'grade'])->name('admin.exam-submissions.grade');
-            Route::post('/activities', [ActivityController::class, 'store'])->name('activities.store');
-            Route::put('/activities/{activity}', [ActivityController::class, 'update'])->name('activities.update');
-            Route::delete('/activities/{activity}', [ActivityController::class, 'destroy'])->name('activities.destroy');
-            Route::get('/admin/fees', [AdminFeeController::class, 'index'])->name('admin.fees.index');
-            Route::post('/admin/fees', [AdminFeeController::class, 'store'])->name('admin.fees.store');
-            Route::delete('/admin/fees/{feeItem}', [AdminFeeController::class, 'destroy'])->name('admin.fees.destroy');
-            Route::post('/admin/fees/{feeItem}/assign', [AdminFeeController::class, 'assign'])->name('admin.fees.assign');
-            Route::get('/admin/student-fees/{studentFee}', [AdminFeeController::class, 'showStudentFee'])->name('admin.student-fees.show');
-            Route::post('/admin/student-fees/{studentFee}/payments', [AdminFeeController::class, 'recordPayment'])->name('admin.student-fees.payments.store');
-            Route::post('/admin/student-fees/{studentFee}/waive', [AdminFeeController::class, 'waive'])->name('admin.student-fees.waive');
-            Route::get('/admin/notices', [AdminNoticeController::class, 'index'])->name('admin.notices.index');
-            Route::post('/admin/notices', [AdminNoticeController::class, 'store'])->name('admin.notices.store');
-            Route::get('/admin/notices/{notice}', [AdminNoticeController::class, 'show'])->name('admin.notices.show');
-        });
-    });
-});
+            Route::post('/admin/students/{student}/exam
