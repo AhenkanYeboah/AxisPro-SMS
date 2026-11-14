@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="auth-page">
-    <div class="auth-card" style="max-width:640px;">
+    <div class="auth-card" style="max-width:760px;">
         <h2 style="margin:0;">Start Your School</h2>
         <p class="sub">Set up your own school management system in a minute. Choose your plan now — you get {{ $trialDays }} days free trial on that plan.</p>
 
@@ -14,7 +14,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('school.signup.store') }}">
+        <form method="POST" action="{{ route('school.signup.store') }}" class="auth-form active">
             @csrf
 
             <p class="form-section-title">Your School</p>
@@ -51,21 +51,22 @@
             <p class="form-section-title">Choose Your Plan * — {{ $trialDays }}-day free trial</p>
             <p style="font-size:12px; color:var(--muted); margin-top:-8px;">You must pick a subscription now. No payment today — you pay after trial ends.</p>
             <div class="form-group">
-                <div style="display:grid; grid-template-columns:1fr; gap:12px; margin-top:8px;">
+                <div class="plan-grid plan-grid--select">
                     @foreach ($plans as $key => $plan)
-                        <label style="display:flex; gap:12px; border:2px solid {{ old('plan', 'standard') === $key ? 'var(--primary, #111)' : '#e5e7eb' }}; border-radius:12px; padding:14px; cursor:pointer; background: {{ old('plan', 'standard') === $key ? '#f9fafb' : '#fff' }};">
-                            <input type="radio" name="plan" value="{{ $key }}" {{ old('plan', 'standard') === $key ? 'checked' : '' }} required style="margin-top:4px;">
-                            <div style="flex:1;">
-                                <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <strong>{{ $plan['name'] }}</strong>
-                                    @if($key === 'standard')
-                                        <span style="font-size:10px; background:#111; color:#fff; padding:2px 6px; border-radius:99px;">MOST POPULAR</span>
-                                    @endif
+                        <label class="plan-option">
+                            <input type="radio" name="plan" value="{{ $key }}" {{ old('plan', 'standard') === $key ? 'checked' : '' }} required>
+                            <div class="plan-card {{ $key === 'standard' ? 'is-featured' : '' }}">
+                                <span class="plan-radio"></span>
+                                @if ($key === 'standard')
+                                    <span class="plan-badge">Most popular</span>
+                                @endif
+                                <div class="plan-name">{{ $plan['name'] }}</div>
+                                <div class="plan-price">
+                                    <span class="plan-currency">GHS</span>
+                                    <span class="plan-amount">{{ number_format($plan['amount_pesewas'] / 100) }}</span>
+                                    <span class="plan-interval">/ term</span>
                                 </div>
-                                <div style="font-size:18px; font-weight:700; margin:4px 0;">
-                                    GHS {{ number_format($plan['amount_pesewas']/100, 2) }} <span style="font-size:11px; font-weight:400; color:var(--muted);">/ {{ $plan['interval'] }}</span>
-                                </div>
-                                <div style="font-size:12px; color:var(--muted);">{{ $plan['description'] }}</div>
+                                <p class="plan-desc">{{ $plan['description'] }}</p>
                             </div>
                         </label>
                     @endforeach
