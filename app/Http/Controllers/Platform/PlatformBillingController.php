@@ -22,6 +22,7 @@ class PlatformBillingController extends Controller
         return view('platform.billing', [
             'school' => $school,
             'plans' => config('saas.plans'),
+            'paystackReady' => ! empty(config('services.paystack.secret') ?: env('PAYSTACK_SECRET_KEY')),
         ]);
     }
 
