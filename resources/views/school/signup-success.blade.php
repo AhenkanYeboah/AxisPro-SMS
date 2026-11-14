@@ -13,7 +13,7 @@
         </div>
 
         <div style="text-align:left; background:#fafafa; border:1px solid #eee; border-radius:8px; padding:14px; font-size:13px;">
-            <div><strong>Plan:</strong> {{ $plan['name'] ?? $school->plan }} — GHS {{ isset($plan) ? number_format($plan['amount_pesewas']/100, 2) : 'N/A' }} / {{ $plan['interval'] ?? 'term' }}</div>
+            <div><strong>Plan:</strong> {{ $plan['name'] ?? $school->plan }} — GHS {{ isset($plan) ? number_format($plan['amount_pesewas']/100) : 'N/A' }} / term</div>
             <div><strong>Status:</strong> Trial — {{ config('saas.trial_days') }} days free</div>
             <div><strong>Trial ends:</strong> {{ $school->trial_ends_at?->format('d M Y') }}</div>
             <div style="margin-top:8px; font-size:12px; color:var(--muted);">{{ $plan['description'] ?? '' }}</div>
